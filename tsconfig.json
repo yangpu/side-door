@@ -1,0 +1,9 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "types": ["jest"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "typeRoots": ["./node_modules/@types", "./types", "./src/types"]
+  }
+}

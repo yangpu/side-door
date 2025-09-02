@@ -1,0 +1,34 @@
+.translated {
+  color: #000;
+  font-size: 0.95em;
+  display: inline-block;
+  background-color: yellow; /* 浅黄色背景 */
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin: 2px 0;
+  line-height: 1.4;
+}
+
+br + .translated {
+  margin-top: 0.25em;
+  display: inline-block;
+  background-color: yellow;
+}
+
+/* 添加其他阅读模式相关的样式 */
+body {
+  font-family: 'Arial', sans-serif;
+  line-height: 1.6;
+  /* color: #333; */
+  /* background-color: #f5f5f5; */
+  padding: 20px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: #444;
+  font-size: 1.2em;
+}
+
+p {
+  margin: 0 0 1em;
+}
