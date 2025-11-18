@@ -15,8 +15,8 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@babel/preset-env": "^7.28.3",
-    "@babel/preset-typescript": "^7.27.1",
+    "@babel/preset-env": "^7.28.5",
+    "@babel/preset-typescript": "^7.28.5",
     "@floating-ui/dom": "^1.7.4",
     "@floating-ui/vue": "^1.1.9",
     "@mozilla/readability": "^0.6.0",
@@ -27,16 +27,16 @@
     "franc": "^6.2.0",
     "highlight.js": "^11.11.1",
     "html2canvas": "^1.4.1",
-    "html2pdf.js": "^0.12.0",
-    "jest": "^30.1.2",
-    "js-beautify": "^1.15.4",
-    "jspdf": "^3.0.2",
-    "marked": "^16.2.1",
-    "monaco-editor": "^0.52.2",
-    "ollama": "^0.5.17",
-    "pdfjs-dist": "^5.4.149",
+    "html2pdf.js": "^0.12.1",
+    "jest": "^29.7.0",
+    "js-beautify": "^1.15.2",
+    "jspdf": "^3.0.3",
+    "marked": "^17.0.0",
+    "monaco-editor": "^0.53.0",
+    "ollama": "^0.6.3",
+    "pdfjs-dist": "^5.4.394",
     "quill": "^2.0.3",
-    "vue": "^3.5.20",
+    "vue": "^3.5.24",
     "vue-img-viewr": "^2.0.11",
     "vue-popperjs": "^2.3.0"
   },
@@ -47,9 +47,9 @@
     "@types/js-beautify": "^1.14.3",
     "@types/jspdf": "^2.0.0",
     "@types/marked": "^6.0.0",
-    "@wxt-dev/module-vue": "^1.0.2",
-    "typescript": "^5.9.2",
-    "vue-tsc": "^3.0.6",
-    "wxt": "^0.20.8"
+    "@wxt-dev/module-vue": "^1.0.3",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.1.4",
+    "wxt": "^0.20.5"
   }
 }

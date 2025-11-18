@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Side Door - Extension Test Page</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5em;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+
+      header p {
+        font-size: 1.2em;
+        opacity: 0.9;
+      }
+
+      .content {
+        padding: 40px;
+      }
+
+      .section {
+        margin-bottom: 40px;
+      }
+
+      .section h2 {
+        color: #667eea;
+        font-size: 1.8em;
+        margin-bottom: 20px;
+        border-bottom: 3px solid #667eea;
+        padding-bottom: 10px;
+      }
+
+      .section h3 {
+        color: #764ba2;
+        font-size: 1.3em;
+        margin: 20px 0 10px;
+      }
+
+      .section p {
+        margin-bottom: 15px;
+        color: #555;
+        font-size: 1.05em;
+      }
+
+      .feature-list {
+        list-style: none;
+        padding: 0;
+      }
+
+      .feature-list li {
+        padding: 12px 0;
+        padding-left: 30px;
+        position: relative;
+        color: #555;
+      }
+
+      .feature-list li:before {
+        content: '✓';
+        position: absolute;
+        left: 0;
+        color: #667eea;
+        font-weight: bold;
+        font-size: 1.2em;
+      }
+
+      .test-instructions {
+        background: #f8f9fa;
+        border-left: 4px solid #667eea;
+        padding: 20px;
+        border-radius: 4px;
+        margin: 20px 0;
+      }
+
+      .test-instructions ol {
+        margin-left: 20px;
+        color: #555;
+      }
+
+      .test-instructions li {
+        margin: 10px 0;
+      }
+
+      .sample-article {
+        background: #f8f9fa;
+        padding: 25px;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+
+      .sample-article p {
+        text-align: justify;
+      }
+
+      .highlight {
+        background: linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-weight: 500;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.9em;
+        margin: 5px 5px 5px 0;
+      }
+
+      footer {
+        background: #f8f9fa;
+        padding: 20px;
+        text-align: center;
+        color: #777;
+        font-size: 0.9em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🚪 Side Door</h1>
+        <p>Chrome Extension Test Page</p>
+      </header>
+
+      <div class="content">
+        <section class="section">
+          <h2>Welcome to Side Door Test Page</h2>
+          <p>
+            This is a comprehensive test page designed to help you test and
+            verify the functionality of the
+            <span class="highlight">Side Door</span> browser extension. Side
+            Door is a powerful tool that helps you read and summarize web
+            content efficiently.
+          </p>
+          <p>
+            <span class="badge">Reading Assistant</span>
+            <span class="badge">Content Summarizer</span>
+            <span class="badge">Web Enhancement</span>
+          </p>
+        </section>
+
+        <section class="section">
+          <h2>Key Features</h2>
+          <ul class="feature-list">
+            <li>Intelligent content extraction and parsing</li>
+            <li>AI-powered article summarization</li>
+            <li>Clean and distraction-free reading experience</li>
+            <li>Support for multiple languages and formats</li>
+            <li>Customizable reading preferences</li>
+            <li>Export and share functionality</li>
+          </ul>
+        </section>
+
+        <section class="section">
+          <h2>How to Test the Extension</h2>
+          <div class="test-instructions">
+            <ol>
+              <li>
+                <strong>Load the Extension:</strong> Make sure the Side Door
+                extension is installed and enabled in your browser.
+              </li>
+              <li>
+                <strong>Click the Extension Icon:</strong> Look for the Side
+                Door icon in your browser toolbar and click it.
+              </li>
+              <li>
+                <strong>Test on This Page:</strong> Try using the extension's
+                features on the sample content below.
+              </li>
+              <li>
+                <strong>Verify Functionality:</strong> Check if all features
+                work as expected, including content extraction, summarization,
+                and any other capabilities.
+              </li>
+              <li>
+                <strong>Test on Real Websites:</strong> Navigate to actual news
+                articles or blog posts to test real-world scenarios.
+              </li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Sample Article Content</h2>
+          <div class="sample-article">
+            <h3>The Future of Web Reading Technologies</h3>
+            <p>
+              In today's digital age, the way we consume content on the web has
+              evolved dramatically. With the exponential growth of online
+              information, users are constantly seeking more efficient ways to
+              read, understand, and digest web content. This is where modern
+              browser extensions and reading tools come into play, transforming
+              the traditional web browsing experience into something more
+              productive and enjoyable.
+            </p>
+            <p>
+              Reading assistant tools have become increasingly sophisticated,
+              leveraging artificial intelligence and machine learning algorithms
+              to provide intelligent content extraction, summarization, and
+              presentation. These tools can identify the main content of a
+              webpage, remove distractions such as advertisements and pop-ups,
+              and present the information in a clean, readable format.
+            </p>
+            <p>
+              Moreover, advanced features such as text-to-speech, translation
+              capabilities, and personalized reading modes are becoming standard
+              offerings. Users can now customize their reading experience based
+              on their preferences, whether it's adjusting font sizes, changing
+              background colors, or enabling dark mode for comfortable nighttime
+              reading.
+            </p>
+            <p>
+              The integration of AI-powered summarization is perhaps one of the
+              most transformative features. Instead of reading lengthy articles
+              in their entirety, users can quickly grasp the main points through
+              intelligent summaries, saving valuable time while still staying
+              informed. This is particularly useful for professionals who need
+              to stay updated on industry news and trends but have limited time
+              for extensive reading.
+            </p>
+            <p>
+              As we look to the future, these technologies will continue to
+              evolve, incorporating more advanced natural language processing
+              capabilities, better context understanding, and even more
+              personalized user experiences. The goal is to make web reading not
+              just easier, but smarter and more meaningful for everyone.
+            </p>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Additional Test Scenarios</h2>
+          <h3>Long-Form Content</h3>
+          <p>
+            This section contains additional paragraphs to test the extension's
+            ability to handle longer content. Lorem ipsum dolor sit amet,
+            consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut
+            labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
+            exercitation ullamco laboris nisi ut aliquip ex ea commodo
+            consequat.
+          </p>
+          <p>
+            Duis aute irure dolor in reprehenderit in voluptate velit esse
+            cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat
+            cupidatat non proident, sunt in culpa qui officia deserunt mollit
+            anim id est laborum. Sed ut perspiciatis unde omnis iste natus error
+            sit voluptatem accusantium doloremque laudantium.
+          </p>
+
+          <h3>Mixed Media Content</h3>
+          <p>
+            Test how the extension handles pages with mixed content types,
+            including text, headings, lists, and formatted sections. The
+            extension should be able to intelligently extract and present this
+            information in a user-friendly manner, regardless of the original
+            page layout or styling.
+          </p>
+        </section>
+
+        <section class="section">
+          <h2>Feedback and Support</h2>
+          <p>
+            If you encounter any issues or have suggestions for improvement,
+            please don't hesitate to reach out. Your feedback is invaluable in
+            making Side Door better for everyone.
+          </p>
+        </section>
+      </div>
+
+      <footer>
+        <p>
+          Side Door Extension Test Page | Created for development and testing
+          purposes
+        </p>
+        <p>© 2025 Side Door Project</p>
+      </footer>
+    </div>
+  </body>
+</html>

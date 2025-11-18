@@ -30,6 +30,6 @@ export default defineConfig({
     },
   },
   webExt: {
-    startUrls: ['https://www.npmjs.com/package/llamaindex'],
+    startUrls: ['file:///Users/yangpu/repositories/ruoji/side-door/test-page.html'],
   },
 });

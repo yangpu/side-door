@@ -8,7 +8,7 @@
 
 <script lang="ts" setup>
 import { ref, onMounted, onUnmounted } from 'vue';
-import Reader from './Reader.vue';
+import Reader from './Reader_before_refactor.vue';
 
 const currentTabUrl = ref('');
 const parsedContent = ref('');
@@ -156,8 +156,27 @@ onMounted(() => {
     // 从URL中解析出url参数
     const urlParams = new URLSearchParams(window.location.search);
     const url = urlParams.get('url');
+    
+    // 尝试从localStorage获取页面HTML（从FloatingButton传递）
+    try {
+      const storedHtml = localStorage.getItem('SIDE_DOOR_PAGE_HTML');
+      const storedUrl = localStorage.getItem('SIDE_DOOR_PAGE_URL');
+      
+      // 如果localStorage中有HTML且URL匹配，直接使用
+      if (storedHtml && storedUrl === url) {
+        parsedContent.value = storedHtml;
+        currentTabUrl.value = url || '';
+        // 清理localStorage
+        localStorage.removeItem('SIDE_DOOR_PAGE_HTML');
+        setupTabUrlListener();
+        return;
+      }
+    } catch (error) {
+      console.error('读取localStorage失败:', error);
+    }
+    
+    // 否则使用原有的解析方式
     parseAndShowContent(url);
-
     setupTabUrlListener();
   }, 100);
 });

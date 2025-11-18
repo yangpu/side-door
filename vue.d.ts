@@ -4,3 +4,7 @@ declare module '*.vue' {
   const component: DefineComponent<object, object, any>;
   export default component;
 }
+
+declare module 'wxt' {
+  export function defineConfig(config: any): any;
+}

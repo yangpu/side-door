@@ -1,5 +1,5 @@
 <template>
-  <div class="floating-button-wrapper">
+  <div class="floating-button-wrapper" v-show="showPopup">
     <!-- 浮动圆形图标 -->
     <div class="floating-button" @click="togglePopup" @dblclick="enterImmersive" :class="{ active: isPopupVisible }"
       title="旁门 - 帮你简读文章 (双击进入沉浸式阅读)">
@@ -131,9 +131,20 @@ const loadState = async () => {
   }
 };
 
-const setPopupUrl = () => {
+const setPopupUrl = async () => {
   const url = browser.runtime.getURL('/popup.html');
-  const value = `${url}?url=${window.location.href}`;
+  const pageUrl = window.location.href;
+  
+  // 将页面HTML存储到localStorage，避免URL过长
+  try {
+    const pageHtml = document.documentElement.outerHTML;
+    localStorage.setItem('SIDE_DOOR_PAGE_HTML', pageHtml);
+    localStorage.setItem('SIDE_DOOR_PAGE_URL', pageUrl);
+  } catch (error) {
+    console.error('保存页面内容失败:', error);
+  }
+  
+  const value = `${url}?url=${encodeURIComponent(pageUrl)}&t=${Date.now()}`;
   if (popupUrl.value !== value) {
     popupUrl.value = value;
   }
@@ -252,13 +263,13 @@ onMounted(async () => {
   // 检查是否为PDF文档
   const isPDF = isPDFDocument();
 
-  // 如果是side-door页面或PDF文档，默认隐藏弹窗
+  // 如果是side-door页面或PDF文档，默认隐藏悬浮按钮
   if (sideDoorMeta || isPDF) {
     showPopup.value = false;
     isPopupVisible.value = false;
     isImmersive.value = false;
   } else {
-    // 如果是普通页面，保持原有行为
+    // 如果是普通页面，显示悬浮按钮
     showPopup.value = true;
   }
 });
@@ -293,6 +304,8 @@ const togglePopup = () => {
   isPopupVisible.value = !isPopupVisible.value;
   if (isPopupVisible.value) {
     isPopupCreated.value = true;
+    // 立即设置 popup URL 并保存页面内容
+    setPopupUrl();
     // 使用nextTick确保DOM更新后再设置焦点
     nextTick(() => {
       const iframe = reader.value;
@@ -349,6 +362,8 @@ const enterImmersive = (event: MouseEvent) => {
   if (!isPopupCreated.value) {
     isPopupCreated.value = true;
   }
+  // 立即设置 popup URL 并保存页面内容
+  setPopupUrl();
   isPopupVisible.value = true;
   isMinimized.value = false;
   isImmersive.value = true;
@@ -394,28 +409,30 @@ const refreshIframe = () => {
 }
 
 .floating-button-wrapper {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 999999;
+  position: fixed !important;
+  right: 20px !important;
+  bottom: 20px !important;
+  z-index: 999999 !important;
+  pointer-events: auto !important;
 }
 
 .floating-button {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--sd-background-secondary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 10px var(--sd-button-shadow);
-  transition: all 0.3s ease;
-  user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  border: 1px solid var(--sd-border-color);
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 50% !important;
+  background: var(--sd-background-secondary) !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 2px 10px var(--sd-button-shadow) !important;
+  transition: all 0.3s ease !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  border: 1px solid var(--sd-border-color) !important;
+  position: relative !important;
 }
 
 .floating-button:hover {
