@@ -24,6 +24,70 @@ function updateTooltip(url: string) {
   browser.action.setTitle({ title: tooltip });
 }
 
+// 监听来自 content script 的消息，用于代理 Ollama 请求
+browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // console.log('[Background] Received message:', message);
+
+  if (message.type === 'OLLAMA_FETCH') {
+    // 在 background script 中执行 fetch，避免 CORS 问题
+    const { url, options } = message.payload;
+    
+    // console.log('[Background] Fetching:', url, options);
+
+    fetch(url, options)
+      .then(async (response) => {
+        // console.log('[Background] Response status:', response.status);
+
+        const isOk = response.ok;
+        const status = response.status;
+        const statusText = response.statusText;
+        const headers: Record<string, string> = {};
+        
+        response.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+
+        // 根据 content-type 决定如何处理响应
+        const contentType = response.headers.get('content-type');
+        let data;
+        
+        if (contentType?.includes('application/json')) {
+          data = await response.json();
+        } else {
+          data = await response.text();
+        }
+
+        // console.log('[Background] Response data:', data);
+
+        const result = {
+          ok: isOk,
+          status,
+          statusText,
+          headers,
+          data,
+        };
+
+        // console.log('[Background] Sending response:', result);
+        sendResponse(result);
+      })
+      .catch((error) => {
+        console.error('[Background] Fetch error:', error);
+        
+        sendResponse({
+          ok: false,
+          status: 0,
+          statusText: error.message,
+          headers: {},
+          data: null,
+          error: error.message,
+        });
+      });
+
+    // 返回 true 表示异步发送响应
+    return true;
+  }
+});
+
 export default defineBackground(() => {
-  // console.log('Hello pu: background!', { id: browser.runtime.id });
+  // console.log('Side Door background service started');
 });

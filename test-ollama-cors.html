@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama CORS 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ollama CORS 测试</h1>
+    <p>测试浏览器环境中对 Ollama 服务的访问</p>
+
+    <div>
+        <button id="btnGet">测试 GET 请求 (/api/tags)</button>
+        <button id="btnPost">测试 POST 请求 (/api/generate)</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(title, content, type = 'success') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<h3>${title}</h3><pre>${content}</pre>`;
+            resultsDiv.appendChild(div);
+        }
+
+        async function testGetRequest() {
+            try {
+                const response = await fetch('http://localhost:11434/api/tags');
+                const data = await response.json();
+                addResult(
+                    '✅ GET 请求成功',
+                    `状态码: ${response.status}\n模型数量: ${data.models?.length || 0}\n\n${JSON.stringify(data, null, 2)}`,
+                    'success'
+                );
+            } catch (error) {
+                addResult(
+                    '❌ GET 请求失败',
+                    `错误信息: ${error.message}\n\n详细信息:\n${error.stack}`,
+                    'error'
+                );
+            }
+        }
+
+        async function testPostRequest() {
+            try {
+                // 先获取可用模型列表
+                const tagsResponse = await fetch('http://localhost:11434/api/tags');
+                if (!tagsResponse.ok) {
+                    throw new Error('无法获取模型列表');
+                }
+                const tagsData = await tagsResponse.json();
+                
+                if (!tagsData.models || tagsData.models.length === 0) {
+                    addResult(
+                        '⚠️ 没有可用的模型',
+                        '请先使用 ollama pull 下载一个模型',
+                        'error'
+                    );
+                    return;
+                }
+
+                const modelName = tagsData.models[0].name;
+                addResult(
+                    '📝 正在测试 POST 请求...',
+                    `使用模型: ${modelName}`,
+                    'info'
+                );
+
+                const response = await fetch('http://localhost:11434/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: modelName,
+                        prompt: 'Say "Hello" in one word',
+                        stream: false
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
+                }
+                
+                const data = await response.json();
+                addResult(
+                    '✅ POST 请求成功',
+                    `状态码: ${response.status}\n模型: ${modelName}\n响应: ${data.response || 'N/A'}\n\n完整数据:\n${JSON.stringify(data, null, 2)}`,
+                    'success'
+                );
+            } catch (error) {
+                addResult(
+                    '❌ POST 请求失败',
+                    `错误信息: ${error.message}\n\n详细信息:\n${error.stack}`,
+                    'error'
+                );
+            }
+        }
+
+        // 绑定事件监听器
+        document.getElementById('btnGet').addEventListener('click', testGetRequest);
+        document.getElementById('btnPost').addEventListener('click', testPostRequest);
+        
+        // 添加使用说明
+        addResult(
+            '📖 使用说明',
+            '1. 确保 Ollama 服务正在运行\n' +
+            '2. 确保已配置 CORS (OLLAMA_ORIGINS=*)\n' +
+            '3. 点击上方按钮测试连接\n\n' +
+            '注意: 这是简化版测试，不需要 ES 模块加载',
+            'info'
+        );
+    </script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+import { watch } from 'vue';
 import { getModelService } from './modelService.js';
 import { settings } from './settings.js';
 
@@ -44,12 +45,13 @@ export class TranslationService {
     }
 
     try {
+      console.log('no_think')
       const response = await this.modelService.chat({
         model,
         messages: [
           {
             role: 'system',
-            content: `你是一个专业的翻译器，将以下内容翻译成中文。注意：不要翻译\${}格式的占位符，将它们原样保留。请严格按照原文翻译，不要添加任何其他内容。`,
+            content: `/no_think 你是一个专业的翻译器，将以下内容翻译成中文。注意：不要翻译\${}格式的占位符，将它们原样保留。请严格按照原文翻译，不要添加任何其他内容。`,
           },
           {
             role: 'user',
@@ -70,8 +72,10 @@ export class TranslationService {
       return;
     }
 
-    const text = container.textContent;
-    if (!text || !this.shouldTranslateText(text)) {
+    // 获取原始文本内容
+    const originalText = node.textContent;
+    if (!originalText || !this.shouldTranslateText(originalText)) {
+      container.style.display = 'none';
       return;
     }
 
@@ -84,7 +88,7 @@ export class TranslationService {
 
     this.queue.push(task);
     container.textContent = `翻译[${this.counter}]...`;
-    container.className = 'translating';
+    container.classList.add('translating');
 
     this.processQueue();
   }
@@ -105,19 +109,21 @@ export class TranslationService {
         await Promise.all(
           batch.map(async ({ node, container }) => {
             try {
-              const text = container.textContent || '';
-              const translation = await this.translate(text);
-              if (translation) {
+              // 获取node的原始文本
+              const originalText = node.textContent || '';
+              const translation = await this.translate(originalText);
+              if (translation && translation !== originalText) {
                 container.textContent = translation;
                 container.classList.remove('translating');
                 container.classList.add('translated');
-                node.classList.add('original-text');
+                container.style.display = '';
               } else {
-                container.remove();
+                // 如果翻译失败或翻译结果与原文相同，隐藏翻译容器
+                container.style.display = 'none';
               }
             } catch (error) {
               console.error('翻译失败:', error);
-              container.remove();
+              container.style.display = 'none';
             }
           })
         );

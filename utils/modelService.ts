@@ -1,4 +1,5 @@
 import { Ollama, ChatResponse } from 'ollama/browser';
+import { extensionFetch } from './extensionFetch';
 
 export interface ModelResponse {
   content: string;
@@ -44,7 +45,12 @@ class OllamaService implements ModelService {
   private modelListPromise: Promise<ModelInfo[]> | null = null;
 
   constructor() {
-    this.ollama = new Ollama();
+    // 显式配置 Ollama host，确保在浏览器扩展环境中正确工作
+    // 使用自定义 fetch 通过 background script 代理请求
+    this.ollama = new Ollama({
+      host: 'http://localhost:11434',
+      fetch: extensionFetch as any, // 使用扩展专用的 fetch
+    });
   }
 
   async chat(params: {

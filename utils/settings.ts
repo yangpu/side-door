@@ -1,5 +1,5 @@
 import { ref, watch } from 'vue';
-import { storage, StorageKeys } from './storage.js';
+import { appStorage as storage, StorageKeys } from './storage.js';
 
 // 设置对象
 export const settings = {

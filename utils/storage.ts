@@ -94,4 +94,5 @@ class StorageManager {
 }
 
 // 导出单例实例
-export const storage = new StorageManager();
+// 使用 appStorage 名称避免与 WXT 内置 storage 冲突
+export const appStorage = new StorageManager();

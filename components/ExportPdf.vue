@@ -227,13 +227,14 @@ async function exportPdf() {
 }
 
 .export-btn {
-  padding: 6px 12px;
+  padding: 8px 16px;
   border: none;
   border-radius: 4px;
-  background-color: var(--button-bg-color);
-  color: var(--button-text-color);
+  background-color: var(--link-color);
+  color: white;
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .export-btn:hover {
@@ -251,104 +252,134 @@ async function exportPdf() {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000;
 }
 
 .dialog {
   background-color: var(--background-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 1.5em;
+  padding: 24px;
   width: 90%;
   max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .dialog h3 {
-  margin: 0 0 1em;
-  font-size: 1.2em;
+  margin: 0 0 20px;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--text-color);
 }
 
+.dialog-content {
+  margin-bottom: 0;
+}
+
 .form-group {
-  margin-bottom: 1em;
+  margin-bottom: 16px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 0.5em;
+  margin-bottom: 8px;
   color: var(--text-color);
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .dialog-input,
 .dialog-select {
   width: 100%;
-  padding: 0.5em;
+  padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  background-color: var(--input-bg-color);
+  background-color: var(--background-color);
   color: var(--text-color);
+  font-size: 14px;
+}
+
+.dialog-input:focus,
+.dialog-select:focus {
+  outline: none;
+  border-color: var(--link-color);
 }
 
 .margin-inputs {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.5em;
+  gap: 8px;
 }
 
 .margin-input {
-  padding: 0.5em;
+  padding: 8px;
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  background-color: var(--input-bg-color);
+  background-color: var(--background-color);
   color: var(--text-color);
   text-align: center;
+  font-size: 14px;
+}
+
+.margin-input:focus {
+  outline: none;
+  border-color: var(--link-color);
 }
 
 .radio-group,
 .checkbox-group {
   display: flex;
-  gap: 1em;
-  margin-top: 0.5em;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .radio-group label,
 .checkbox-group label {
   display: flex;
   align-items: center;
-  gap: 0.5em;
+  gap: 8px;
   cursor: pointer;
+  color: var(--text-color);
+  font-size: 14px;
 }
 
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5em;
-  margin-top: 1.5em;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
 }
 
 .action-btn {
-  padding: 6px 12px;
+  padding: 8px 16px;
   border: none;
   border-radius: 4px;
-  background-color: var(--button-bg-color);
-  color: var(--button-text-color);
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity 0.2s;
 }
 
 .cancel-btn {
-  background-color: var(--button-secondary-bg-color);
+  background-color: var(--hover-bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
 }
 
 .confirm-btn {
-  background-color: var(--primary-color);
+  background-color: var(--link-color);
+  color: white;
 }
 
 .action-btn:hover {
-  opacity: 0.9;
+  opacity: 0.85;
 }
 
 .action-btn:disabled {

@@ -2,8 +2,9 @@
   <div class="paragraph-hover-bar" :class="{ active: isParentHovered || isHovered }" @mouseenter.stop="handleMouseEnter"
     @mouseleave.stop="handleMouseLeave">
     <div class="action-area" v-show="isParentHovered || isHovered" @mouseenter.stop @mouseleave.stop>
-      <div class="add-trigger" title="插入内容">+</div>
+      <div class="add-trigger" title="操作">+</div>
       <div class="add-buttons">
+        <button class="hover-btn edit-btn" @click="handleEdit">编辑段落</button>
         <button class="hover-btn add-text-btn" @click="handleAddText">添加文本</button>
         <button class="hover-btn add-code-btn" @click="handleAddCode">添加代码</button>
         <button class="hover-btn delete-btn" @click="handleDelete">删除段落</button>
@@ -20,6 +21,13 @@ const props = defineProps<{
   isParentHovered: boolean;
 }>();
 
+const emit = defineEmits<{
+  (e: 'edit'): void;
+  (e: 'addText'): void;
+  (e: 'addCode'): void;
+  (e: 'delete'): void;
+}>();
+
 const isHovered = ref(false);
 
 const handleMouseEnter = () => {
@@ -30,19 +38,20 @@ const handleMouseLeave = () => {
   isHovered.value = false;
 };
 
+const handleEdit = () => {
+  emit('edit');
+};
+
 const handleAddText = () => {
-  // 实现添加文本功能
-  console.log('添加文本');
+  emit('addText');
 };
 
 const handleAddCode = () => {
-  // 实现添加代码功能
-  console.log('添加代码');
+  emit('addCode');
 };
 
 const handleDelete = () => {
-  // 实现删除功能
-  console.log('删除段落');
+  emit('delete');
 };
 </script>
 
@@ -205,6 +214,10 @@ const handleDelete = () => {
 
 .hover-btn:hover {
   background-color: var(--hover-bg-color);
+  color: var(--primary-color);
+}
+
+.edit-btn {
   color: var(--primary-color);
 }
 

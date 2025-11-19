@@ -9,7 +9,11 @@ export default defineConfig({
     action: {
       default_title: '旁门-帮你简读文章', // 修改这里的默认tooltip
     },
-    host_permissions: ['<all_urls>'], // 允许所有访问权限
+    host_permissions: [
+      '<all_urls>',
+      'http://localhost:11434/*', // 明确允许访问本地 Ollama 服务
+      'http://127.0.0.1:11434/*', // 同时支持 127.0.0.1
+    ],
     permissions: [
       'activeTab',
       'scripting',

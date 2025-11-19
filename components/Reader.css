@@ -885,7 +885,7 @@ pre:hover .copy-button {
   background-color: var(--hover-bg-color);
 }
 
-/* .paragraph-hover-bar {
+.paragraph-hover-bar {
   position: absolute;
   right: 0;
   top: 0;
@@ -937,7 +937,7 @@ pre:hover .copy-button {
 .paragraph-hover-bar.edited::after {
   background-color: var(--translated-bg-color);
   transform: scaleY(1);
-} */
+}
 
 .paragraph:hover .paragraph-hover-bar.edited,
 .paragraph:hover .paragraph-hover-bar:hover {
@@ -1536,7 +1536,7 @@ html[data-theme='dark'] .paragraph-popover .popover-arrow::before {
   left: -4px;
 }
 
-/* .action-area {
+.action-area {
   position: absolute;
   right: 0;
   bottom: -24px;
@@ -1707,7 +1707,7 @@ html[data-theme='dark'] .paragraph-popover .popover-arrow::before {
 .paragraph-hover-bar:hover .arrow-container,
 .arrow-container:hover {
   opacity: 1;
-} */
+}
 
 .loading-dots {
   display: inline-block;
@@ -2121,13 +2121,13 @@ html[data-theme='dark'] .paragraph-popover .popover-arrow::before {
   display: var(--origin-text-visible);
 }
 
-/* .delete-hover-btn {
+.delete-hover-btn {
   background-color: #e53e3e;
 }
 
 .delete-hover-btn:hover {
   background-color: #c53030;
-} */
+}
 
 .article-content ul:has(> li:only-child > a:only-child),
 .article-content ul:has(> li > a:only-child),
