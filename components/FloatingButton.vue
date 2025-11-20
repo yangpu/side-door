@@ -144,7 +144,8 @@ const setPopupUrl = async () => {
     console.error('保存页面内容失败:', error);
   }
   
-  const value = `${url}?url=${encodeURIComponent(pageUrl)}&t=${Date.now()}`;
+  // 移除时间戳参数，避免不必要的刷新
+  const value = `${url}?url=${encodeURIComponent(pageUrl)}`;
   if (popupUrl.value !== value) {
     popupUrl.value = value;
   }
@@ -370,12 +371,21 @@ const enterImmersive = (event: MouseEvent) => {
 };
 
 const refreshIframe = () => {
-  // 临时清空 URL 然后重新设置，触发 iframe 刷新
-  const currentUrl = popupUrl.value;
-  popupUrl.value = '';
-  setTimeout(() => {
-    popupUrl.value = currentUrl;
-  }, 10);
+  // 通过添加时间戳参数强制刷新 iframe
+  const url = browser.runtime.getURL('/popup.html');
+  const pageUrl = window.location.href;
+  
+  // 更新 localStorage 中的内容
+  try {
+    const pageHtml = document.documentElement.outerHTML;
+    localStorage.setItem('SIDE_DOOR_PAGE_HTML', pageHtml);
+    localStorage.setItem('SIDE_DOOR_PAGE_URL', pageUrl);
+  } catch (error) {
+    console.error('保存页面内容失败:', error);
+  }
+  
+  // 添加时间戳强制刷新
+  popupUrl.value = `${url}?url=${encodeURIComponent(pageUrl)}&t=${Date.now()}`;
 };
 </script>
 

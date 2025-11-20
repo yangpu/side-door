@@ -28,11 +28,11 @@
     "highlight.js": "^11.11.1",
     "html2canvas": "^1.4.1",
     "html2pdf.js": "^0.12.1",
-    "jest": "^29.7.0",
-    "js-beautify": "^1.15.2",
-    "jspdf": "^3.0.3",
+    "jest": "^30.2.0",
+    "js-beautify": "^1.15.4",
+    "jspdf": "^3.0.4",
     "marked": "^17.0.0",
-    "monaco-editor": "^0.53.0",
+    "monaco-editor": "^0.54.0",
     "ollama": "^0.6.3",
     "pdfjs-dist": "^5.4.394",
     "quill": "^2.0.3",
@@ -50,6 +50,6 @@
     "@wxt-dev/module-vue": "^1.0.3",
     "typescript": "^5.9.3",
     "vue-tsc": "^3.1.4",
-    "wxt": "^0.20.5"
+    "wxt": "^0.20.11"
   }
 }

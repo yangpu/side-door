@@ -4,6 +4,7 @@ import { Readability } from '@mozilla/readability';
 import { extractDates } from '../utils/dateExtractor';
 import { Ollama } from 'ollama/browser';
 import { franc } from 'franc'; // 导入 franc 用于语言检测
+import { removeThinkTags } from '../utils/thinkTagFilter';
 import html2pdf from 'html2pdf.js';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github.css'; // 使用 GitHub 风格的主题
@@ -131,6 +132,7 @@ interface ArticlePreview {
 const props = defineProps<{
   html: string;
   url: string; // 新增的 url 参数
+  refreshKey?: number; // 用于手动触发刷新的键值
 }>();
 
 const content = ref<HTMLElement | null>(null);
@@ -265,7 +267,7 @@ async function generateSummary(text?: string) {
         isLoading.value = false;
       }
 
-      partialSummary += part.message.content;
+      partialSummary += removeThinkTags(part.message.content);
       summary.value = partialSummary;
     }
 
@@ -339,7 +341,7 @@ async function generateImageSummary() {
         isLoading.value = false;
       }
 
-      partialSummary += part.message.content;
+      partialSummary += removeThinkTags(part.message.content);
       summary.value = partialSummary;
     }
 
@@ -424,9 +426,9 @@ async function translate(text: string, detectAgain: boolean = false): Promise<st
     let prompt = '';
 
     if (textToTranslate.includes('${')) {
-      prompt = `你是一个专业的翻译器，将以下内容翻译成中文。注意：不要翻译\${}格式的占位符，将它们原样保留。请严格按照原文翻译，不要添加任何其他内容。`;
+      prompt = `/no_think 你是一个专业的翻译器，将以下内容翻译成中文。注意：不要翻译\${}格式的占位符，将它们原样保留。请严格按照原文翻译，不要添加任何其他内容。`;
     } else {
-      prompt = `你是一个专业的翻译器，将以下内容翻译成中文。请严格按照原文翻译，不要添加任何其他内容。`;
+      prompt = `/no_think 你是一个专业的翻译器，将以下内容翻译成中文。请严格按照原文翻译，不要添加任何其他内容。`;
     }
 
     const response = await ollama.chat({
@@ -444,7 +446,7 @@ async function translate(text: string, detectAgain: boolean = false): Promise<st
       stream: false,
     });
 
-    let translatedText = response.message.content;
+    let translatedText = removeThinkTags(response.message.content);
 
     // 检查是否所有占位符都被正确保留
     const missingPlaceholders = placeholders.filter(p => !translatedText.includes(p));
@@ -1835,11 +1837,12 @@ function processFile(doc: Document): Boolean {
   return true;
 }
 
-// 添加 watch
+// 修改 watch 监听 refreshKey，只在显式刷新时更新内容
 watch(
-  () => props.html,
-  () => {
-    if (props.html) {
+  () => props.refreshKey,
+  (newKey, oldKey) => {
+    // 只有当 refreshKey 真正变化时才刷新（排除初始化时的 undefined）
+    if (newKey !== undefined && newKey !== oldKey && props.html) {
       processArticle();
     }
   }
@@ -4449,7 +4452,7 @@ function initializeQuillEditor(popover: HTMLElement, paragraph: HTMLElement) {
 
               // 处理流式响应
               for await (const part of response) {
-                chatResponse.textContent += part.message.content;
+                chatResponse.textContent += removeThinkTags(part.message.content);
                 // 自动滚动到底部
                 chatResponse.scrollTop = chatResponse.scrollHeight;
               }

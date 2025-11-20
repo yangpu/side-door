@@ -1,5 +1,6 @@
 import { Ollama, ChatResponse } from 'ollama/browser';
 import { extensionFetch } from './extensionFetch';
+import { removeThinkTags } from './thinkTagFilter';
 
 export interface ModelResponse {
   content: string;
@@ -59,7 +60,7 @@ class OllamaService implements ModelService {
   }): Promise<ModelResponse> {
     const response = await this.ollama.chat(params);
     return {
-      content: response.message.content,
+      content: removeThinkTags(response.message.content),
     };
   }
 
@@ -72,7 +73,7 @@ class OllamaService implements ModelService {
     async function* transform(): AsyncGenerator<ModelResponse> {
       for await (const part of response) {
         yield {
-          content: part.message.content,
+          content: removeThinkTags(part.message.content),
         };
       }
     }

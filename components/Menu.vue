@@ -1,7 +1,7 @@
 <template>
   <div class="menu-container">
     <!-- <p class="current-url">{{ currentTabUrl }}</p> -->
-    <Reader v-if="parsedContent" :html="parsedContent" :url="currentTabUrl" />
+    <Reader v-if="parsedContent" :html="parsedContent" :url="currentTabUrl" :refreshKey="refreshKey" />
     <p v-else class="loading">旁门帮你简读文章...</p>
   </div>
 </template>
@@ -12,6 +12,7 @@ import Reader from './Reader.vue';
 
 const currentTabUrl = ref('');
 const parsedContent = ref('');
+const refreshKey = ref(0);
 let currentTab = -1;
 
 let tabUrlListener:
@@ -43,6 +44,8 @@ async function parseAndShowContent(url?: string | null) {
       if (results && results[0] && results[0].result) {
         const article = results[0].result as string;
         parsedContent.value = article;
+        // 增加 refreshKey 触发 Reader 重新处理内容
+        refreshKey.value++;
       } else {
         console.error('无法解析文章内容');
       }
@@ -166,6 +169,8 @@ onMounted(() => {
       if (storedHtml && storedUrl === url) {
         parsedContent.value = storedHtml;
         currentTabUrl.value = url || '';
+        // 增加 refreshKey 触发 Reader 重新处理内容
+        refreshKey.value++;
         // 清理localStorage
         localStorage.removeItem('SIDE_DOOR_PAGE_HTML');
         setupTabUrlListener();
