@@ -4651,5 +4651,5 @@ watch(currentTheme, (newTheme) => {
   </div>
 </template>
 <style>
-@import './Reader_before_refactor.css';
+@import './Reader.css';
 </style>
