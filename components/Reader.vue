@@ -39,6 +39,15 @@ import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 
+// 导入稍后阅读服务
+import { ReadLaterService } from '../services/readLaterService';
+import type { Article } from '../types/article';
+import ReadLaterList from './ReadLaterList.vue';
+import ReadLaterDetail from './ReadLaterDetail.vue';
+
+// 导入 toast
+import { toast } from '../utils/toast';
+
 // 配置 Monaco Editor 的 worker
 self.MonacoEnvironment = {
   getWorker(_, label) {
@@ -1876,6 +1885,11 @@ function getFormattedDateTime() {
 
 // 添加新的响应式变量
 const isExportingPDF = ref(false);
+const isSavingToReadLater = ref(false);
+
+// 稍后阅读列表相关状态
+const showReadLaterList = ref(false);
+const selectedArticleId = ref<string | null>(null);
 
 // 添加一个辅助函数来检查是否为 base64 图片
 function isBase64Image(src: string): boolean {
@@ -2482,6 +2496,182 @@ async function exportToHTML() {
   }
 }
 
+// 保存到稍后阅读
+async function saveToReadLater() {
+  if (isSavingToReadLater.value) return;
+
+  try {
+    isSavingToReadLater.value = true;
+
+    // 1. 收集文章信息（包括 AI 摘要）
+    const article: Article = {
+      title: title.value || '无标题',
+      url: props.url,
+      author: byline.value !== '--' ? byline.value : undefined,
+      published_date: publishedTime.value !== '--' ? publishedTime.value : undefined,
+      length: length.value !== '--' ? parseInt(length.value) : undefined,
+      language: dir.value !== '--' ? dir.value : undefined,
+      summary: excerpt.value || undefined, // Readability 摘要
+      ai_summary: summary.value || undefined, // AI 生成的摘要
+      content: content.value?.innerHTML || '',
+      content_text: content.value?.textContent || '',
+    };
+
+    // 2. 生成 HTML 文件
+    let htmlBlob: Blob | undefined;
+    try {
+      const readerContainer = document.querySelector('.reader-container') as HTMLElement;
+      if (readerContainer) {
+        await ensureAllImagesBase64(readerContainer);
+        const clonedContainer = readerContainer.cloneNode(true) as HTMLElement;
+        await processCanvasElements(clonedContainer);
+
+        // 移除不需要的元素
+        const elementsToRemove = clonedContainer.querySelectorAll(
+          '.settings-button, .read-later-button, .settings-popover, .paragraph-hover-bar, button'
+        );
+        elementsToRemove.forEach((el) => el.remove());
+
+        const safeTitle = (title.value || '未命名文章').replace(/[<>:"/\\|?*]/g, '');
+        const timestamp = new Date().toISOString().slice(0, 10);
+
+        const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${safeTitle}</title>
+    <style>
+      ${readerCss}
+
+      :root {
+        --translated-bg-color: ${translatedBgColor.value};
+        --origin-text-visible: ${showOriginalText.value ? 'initial' : 'none'};
+        --font-scale: ${fontScale.value};
+      }
+
+      body {
+        margin: 0;
+        background: var(--background-color);
+      }
+
+      .paragraph:hover .paragraph-hover-bar {
+        opacity: 0;
+      }
+
+      @media print {
+        .export-btn { display: none; }
+        .reader-container { height: auto !important; }
+        img { max-width: 100% !important; page-break-inside: avoid; }
+        pre, code { white-space: pre-wrap !important; }
+        @page { margin: 2cm; }
+      }
+    </style>
+</head>
+<body>
+    ${clonedContainer.outerHTML}
+</body>
+</html>`;
+
+        htmlBlob = new Blob([html], { type: 'text/html' });
+      }
+    } catch (error) {
+      console.error('生成 HTML 失败:', error);
+    }
+
+    // 3. 生成 PDF 文件
+    let pdfBlob: Blob | undefined;
+    try {
+      const readerContainer = document.querySelector('.reader-container') as HTMLElement;
+      if (readerContainer && htmlBlob) {
+        // 使用已生成的 HTML 来创建 PDF
+        const tempContainer = document.createElement('div');
+        tempContainer.style.cssText = 'position: absolute; left: -9999px; top: 0;';
+        document.body.appendChild(tempContainer);
+
+        const clonedContainer = readerContainer.cloneNode(true) as HTMLElement;
+        await processCanvasElements(clonedContainer);
+
+        // 移除不需要的元素
+        const elementsToRemove = clonedContainer.querySelectorAll(
+          '.settings-button, .read-later-button, .settings-popover, .paragraph-hover-bar, button'
+        );
+        elementsToRemove.forEach((el) => el.remove());
+
+        tempContainer.appendChild(clonedContainer);
+
+        const isDarkTheme = document.documentElement.getAttribute('data-theme') === 'dark';
+        const options = {
+          margin: 10,
+          filename: 'temp.pdf',
+          image: { type: 'jpeg', quality: 0.85 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            letterRendering: true,
+            backgroundColor: isDarkTheme ? '#1a1a1a' : '#ffffff',
+          },
+          jsPDF: {
+            unit: 'mm',
+            format: 'a4',
+            orientation: 'portrait',
+            compress: true,
+            compressPdf: true,
+            putOnlyUsedFonts: true,
+            floatPrecision: 16,
+            background: isDarkTheme ? '#1a1a1a' : '#ffffff',
+            optimization: { compress: true, maxResolution: 300 },
+          },
+          pagebreak: {
+            mode: 'avoid-all',
+            avoid: ['img', 'pre', 'table', 'h1', 'h2', 'h3'],
+          },
+        };
+
+        const pdfDataUrl = await html2pdf().set(options).from(clonedContainer).outputPdf('dataurlstring');
+        const base64 = pdfDataUrl.split(',')[1];
+        const bytes = atob(base64);
+        const arrayBuffer = new ArrayBuffer(bytes.length);
+        const uint8Array = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < bytes.length; i++) {
+          uint8Array[i] = bytes.charCodeAt(i);
+        }
+        pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+
+        document.body.removeChild(tempContainer);
+      }
+    } catch (error) {
+      console.error('生成 PDF 失败:', error);
+    }
+
+    // 4. 保存到 Supabase（包含 HTML 和 PDF）
+    const result = await ReadLaterService.saveArticle(article, htmlBlob, pdfBlob);
+
+    if (result.success) {
+      toast.success('已保存到稍后阅读！');
+    } else {
+      toast.error('保存失败: ' + (result.error || '未知错误'));
+    }
+  } catch (error) {
+    console.error('保存到稍后阅读失败:', error);
+    toast.error('保存失败: ' + (error as Error).message);
+  } finally {
+    isSavingToReadLater.value = false;
+  }
+}
+
+// 切换稍后阅读列表显示
+function toggleReadLaterList() {
+  showReadLaterList.value = !showReadLaterList.value;
+  selectedArticleId.value = null;
+}
+
+// 打开保存的文章
+function openSavedArticle(article: Article) {
+  selectedArticleId.value = article.id || null;
+}
+
 // 添加图片查看器相关的响应式变量
 const showImageViewer = ref(false);
 const currentPreviewIndex = ref<number | null>(null);
@@ -2679,7 +2869,7 @@ async function fetchAndParseArticle(url: string): Promise<ArticlePreview> {
     }
 
     // 如果没有 og:image，尝试从文章内容中获取第一张图片
-    if (!imageUrl) {
+    if (!imageUrl && article.content) {
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = article.content;
       const firstImage = tempDiv.querySelector('img');
@@ -2691,10 +2881,9 @@ async function fetchAndParseArticle(url: string): Promise<ArticlePreview> {
     // 生成摘要
     const excerpt =
       article.excerpt ||
-      article.content
-        .replace(/<[^>]+>/g, ' ')
-        .slice(0, 200)
-        .trim() + '...';
+      (article.content
+        ? article.content.replace(/<[^>]+>/g, ' ').slice(0, 200).trim() + '...'
+        : '');
 
     return {
       title: article.title || '',
@@ -3784,6 +3973,13 @@ function openSettingsPopover(event: MouseEvent) {
               <span class="settings-btn-text">导出 PDF</span>
               <span class="loading-dots" style="display: none;"></span>
             </button>
+            <button class="settings-btn save-read-later-btn">
+              <span class="settings-btn-text">稍后阅读</span>
+              <span class="loading-dots" style="display: none;"></span>
+            </button>
+            <button class="settings-btn read-later-list-btn">
+              <span class="settings-btn-text">阅读列表</span>
+            </button>
           </div>
         </div>
         <div class="settings-section">
@@ -3911,10 +4107,24 @@ function openSettingsPopover(event: MouseEvent) {
     exportHtmlBtn.addEventListener('click', exportToHTML);
   }
 
+  const saveReadLaterBtn = popover.querySelector('.save-read-later-btn');
+  if (saveReadLaterBtn) {
+    saveReadLaterBtn.addEventListener('click', saveToReadLater);
+  }
+
+  const readLaterListBtn = popover.querySelector('.read-later-list-btn');
+  if (readLaterListBtn) {
+    readLaterListBtn.addEventListener('click', () => {
+      closeSettingsPopover();
+      toggleReadLaterList();
+    });
+  }
+
   // 更新导出按钮状态
   function updateExportButtons() {
     const pdfBtn = popover.querySelector('.export-pdf-btn') as HTMLButtonElement;
     const htmlBtn = popover.querySelector('.export-html-btn') as HTMLButtonElement;
+    const readLaterBtn = popover.querySelector('.save-read-later-btn') as HTMLButtonElement;
 
     if (pdfBtn) {
       pdfBtn.disabled = isExportingPDF.value || isExportingHTML.value;
@@ -3935,10 +4145,20 @@ function openSettingsPopover(event: MouseEvent) {
         htmlLoadingDots.style.display = isExportingHTML.value ? 'inline-block' : 'none';
       }
     }
+
+    if (readLaterBtn) {
+      readLaterBtn.disabled = isSavingToReadLater.value;
+      const readLaterBtnText = readLaterBtn.querySelector('.settings-btn-text') as HTMLElement;
+      const readLaterLoadingDots = readLaterBtn.querySelector('.loading-dots') as HTMLElement;
+      if (readLaterBtnText && readLaterLoadingDots) {
+        readLaterBtnText.textContent = isSavingToReadLater.value ? '保存中' : '稍后阅读';
+        readLaterLoadingDots.style.display = isSavingToReadLater.value ? 'inline-block' : 'none';
+      }
+    }
   }
 
   // 监听导出状态变化
-  watch([isExportingPDF, isExportingHTML], () => {
+  watch([isExportingPDF, isExportingHTML, isSavingToReadLater], () => {
     updateExportButtons();
   });
 
@@ -4587,6 +4807,13 @@ watch(currentTheme, (newTheme) => {
 
 <template>
   <div class="reader-sidedoor">
+    <!-- 稍后阅读列表弹窗 -->
+    <div v-if="showReadLaterList" class="read-later-modal">
+      <ReadLaterList v-if="!selectedArticleId" @close="showReadLaterList = false" @openArticle="openSavedArticle" />
+      <ReadLaterDetail v-else :articleId="selectedArticleId" @close="showReadLaterList = false"
+        @back="selectedArticleId = null" />
+    </div>
+
     <div class="reader-container" tabindex="0">
       <button class="settings-button" @click="openSettingsPopover" title="设置">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"

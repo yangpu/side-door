@@ -22,6 +22,7 @@
     "@mozilla/readability": "^0.6.0",
     "@popperjs/core": "^2.11.8",
     "@simonwep/pickr": "^1.9.1",
+    "@supabase/supabase-js": "^2.83.0",
     "@types/quill": "^2.0.14",
     "extract-date": "^2.8.2",
     "franc": "^6.2.0",

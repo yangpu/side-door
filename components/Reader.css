@@ -1805,6 +1805,18 @@ html[data-theme='dark'] .paragraph-popover .popover-arrow::before {
   color: var(--text-color);
 }
 
+/* 稍后阅读弹窗 */
+.read-later-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2000;
+  background: var(--background-color);
+  overflow: hidden;
+}
+
 .settings-popover {
   background: var(--background-color);
   border-radius: 8px;

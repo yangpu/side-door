@@ -64,6 +64,9 @@
         <div class="export-options">
           <button @click="exportHtml">导出 HTML</button>
           <button @click="exportPdf">导出 PDF</button>
+          <button @click="saveToReadLater" :disabled="isSaving">
+            {{ isSaving ? '保存中...' : '稍后阅读' }}
+          </button>
         </div>
       </div>
     </div>
@@ -71,10 +74,15 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { settings } from '../utils/settings.js';
 import ColorPicker from './ColorPicker.vue';
 import ModelSettings from './ModelSettings.vue';
 import ThemeSwitch from './ThemeSwitch.vue';
+
+const emit = defineEmits(['close', 'saveToReadLater']);
+
+const isSaving = ref(false);
 
 const exportHtml = async () => {
   // TODO: 实现导出 HTML 功能
@@ -86,7 +94,17 @@ const exportPdf = async () => {
   console.log('导出 PDF');
 };
 
-defineEmits(['close']);
+const saveToReadLater = async () => {
+  isSaving.value = true;
+  try {
+    emit('saveToReadLater');
+  } finally {
+    // 延迟重置状态，让用户看到反馈
+    setTimeout(() => {
+      isSaving.value = false;
+    }, 1000);
+  }
+};
 </script>
 
 <style scoped>
