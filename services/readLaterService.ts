@@ -112,6 +112,67 @@ export class ReadLaterService {
   }
 
   /**
+   * 判断图片尺寸是否适合作为封面
+   * 适合的封面图片应该：宽度 >= 300px，高度 >= 200px，宽高比在 1:1 到 3:1 之间
+   */
+  private static isSuitableForCover(width?: number, height?: number): boolean {
+    if (!width || !height) return false;
+    
+    const minWidth = 300;
+    const minHeight = 200;
+    const aspectRatio = width / height;
+    
+    return width >= minWidth && 
+           height >= minHeight && 
+           aspectRatio >= 0.8 && 
+           aspectRatio <= 3;
+  }
+
+  /**
+   * 获取图片元素的尺寸
+   * 优先从width/height属性获取，如果没有则返回undefined
+   */
+  private static getImageDimensions(img: Element): { width?: number; height?: number } {
+    let width: number | undefined;
+    let height: number | undefined;
+
+    // 尝试从属性获取
+    const widthAttr = img.getAttribute('width');
+    const heightAttr = img.getAttribute('height');
+    
+    if (widthAttr) width = parseInt(widthAttr, 10);
+    if (heightAttr) height = parseInt(heightAttr, 10);
+
+    // 如果没有属性，尝试从style获取
+    if (!width || !height) {
+      const style = img.getAttribute('style') || '';
+      const widthMatch = style.match(/width:\s*(\d+)px/);
+      const heightMatch = style.match(/height:\s*(\d+)px/);
+      
+      if (widthMatch && !width) width = parseInt(widthMatch[1], 10);
+      if (heightMatch && !height) height = parseInt(heightMatch[1], 10);
+    }
+
+    return { width, height };
+  }
+
+  /**
+   * 通过加载图片获取真实尺寸
+   */
+  private static async getImageSize(src: string): Promise<{ width: number; height: number } | null> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        resolve({ width: img.width, height: img.height });
+      };
+      img.onerror = () => {
+        resolve(null);
+      };
+      img.src = src;
+    });
+  }
+
+  /**
    * 处理内容中的图片（提取 base64 和外链图片，并替换为占位符）
    */
   private static async processContentImages(
@@ -123,6 +184,7 @@ export class ReadLaterService {
     const images: ArticleImage[] = [];
     const imageElements = doc.querySelectorAll('img');
     let coverImage: string | undefined;
+    let firstImage: string | undefined; // 记录第一张图片作为备选
 
     for (let i = 0; i < imageElements.length; i++) {
       const img = imageElements[i];
@@ -140,11 +202,20 @@ export class ReadLaterService {
           // 生成唯一 ID 作为占位符
           const uniqueId = `base64-image-${Date.now()}-${Math.random().toString(36).substring(7)}`;
           
+          // 获取图片尺寸 - 先从属性获取，如果没有则加载图片获取真实尺寸
+          let dimensions = this.getImageDimensions(img);
+          if (!dimensions.width || !dimensions.height) {
+            const size = await this.getImageSize(src);
+            if (size) {
+              dimensions = size;
+            }
+          }
+          
           images.push({
             original_url: src,
             alt_text: img.alt || '',
-            width: img.naturalWidth || undefined,
-            height: img.naturalHeight || undefined,
+            width: dimensions.width,
+            height: dimensions.height,
             blob, // 临时存储 blob，稍后上传
             fileExt,
             uniqueId, // 用于后续替换
@@ -154,9 +225,12 @@ export class ReadLaterService {
           img.setAttribute('src', `{{${uniqueId}}}`);
           img.removeAttribute('data-src');
 
-          // 第一张图片作为封面
-          if (!coverImage && i === 0) {
-            coverImage = uniqueId; // 临时使用 uniqueId，稍后会被替换
+          // 选择合适尺寸的图片作为封面
+          if (i === 0) {
+            firstImage = uniqueId;
+          }
+          if (!coverImage && this.isSuitableForCover(dimensions.width, dimensions.height)) {
+            coverImage = uniqueId;
           }
         } catch (error) {
           console.error('处理 base64 图片失败:', error);
@@ -164,15 +238,27 @@ export class ReadLaterService {
       }
       // 处理外链图片
       else if (src.startsWith('http')) {
+        // 获取图片尺寸 - 先从属性获取，如果没有则尝试加载图片获取真实尺寸
+        let dimensions = this.getImageDimensions(img);
+        if (!dimensions.width || !dimensions.height) {
+          const size = await this.getImageSize(src);
+          if (size) {
+            dimensions = size;
+          }
+        }
+        
         images.push({
           original_url: src,
           alt_text: img.alt || '',
-          width: img.naturalWidth || undefined,
-          height: img.naturalHeight || undefined,
+          width: dimensions.width,
+          height: dimensions.height,
         });
 
-        // 第一张图片作为封面
-        if (!coverImage && i === 0) {
+        // 选择合适尺寸的图片作为封面
+        if (i === 0) {
+          firstImage = src;
+        }
+        if (!coverImage && this.isSuitableForCover(dimensions.width, dimensions.height)) {
           coverImage = src;
         }
       }
@@ -180,20 +266,38 @@ export class ReadLaterService {
       else {
         try {
           const absoluteUrl = new URL(src, baseUrl).href;
+          
+          // 获取图片尺寸
+          let dimensions = this.getImageDimensions(img);
+          if (!dimensions.width || !dimensions.height) {
+            const size = await this.getImageSize(absoluteUrl);
+            if (size) {
+              dimensions = size;
+            }
+          }
+          
           images.push({
             original_url: absoluteUrl,
             alt_text: img.alt || '',
-            width: img.naturalWidth || undefined,
-            height: img.naturalHeight || undefined,
+            width: dimensions.width,
+            height: dimensions.height,
           });
 
-          if (!coverImage && i === 0) {
+          if (i === 0) {
+            firstImage = absoluteUrl;
+          }
+          if (!coverImage && this.isSuitableForCover(dimensions.width, dimensions.height)) {
             coverImage = absoluteUrl;
           }
         } catch {
           console.warn('无法解析相对路径:', src);
         }
       }
+    }
+
+    // 如果没有找到合适尺寸的封面图，使用第一张图片
+    if (!coverImage && firstImage) {
+      coverImage = firstImage;
     }
 
     // 同时处理 video 和 audio 标签的 base64 资源

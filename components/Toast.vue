@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 
 export interface ToastProps {
   message: string;
@@ -43,15 +43,26 @@ const handleClose = () => {
   emit('close');
 };
 
+const startTimer = () => {
+  if (timer) clearTimeout(timer);
+  timer = window.setTimeout(() => {
+    handleClose();
+  }, props.duration);
+};
+
+// 组件挂载时，如果visible为true，启动定时器
+onMounted(() => {
+  if (visible.value) {
+    startTimer();
+  }
+});
+
 watch(
   () => props.visible,
   (newVal) => {
     visible.value = newVal;
     if (newVal) {
-      if (timer) clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        handleClose();
-      }, props.duration);
+      startTimer();
     }
   }
 );

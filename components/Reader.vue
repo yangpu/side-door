@@ -280,8 +280,11 @@ async function generateSummary(text?: string) {
       summary.value = partialSummary;
     }
 
-    // 去掉可能存在的markdown标记
-    const cleanSummary = partialSummary.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+
+    // 去掉可能存在的markdown标记和思考过程标签
+    let cleanSummary = partialSummary.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+    cleanSummary = cleanSummary.replace(/<think>[\s\S]*?<\/think>/g, '');
+    cleanSummary = cleanSummary.replace(/^markdown/g, '')
     summary.value = await marked(cleanSummary);
 
     isSummaryGenerated.value = true;
@@ -354,8 +357,9 @@ async function generateImageSummary() {
       summary.value = partialSummary;
     }
 
-    // 去掉可能存在的markdown标记
-    const cleanSummary = partialSummary.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+    // 去掉可能存在的markdown标记和思考过程标签
+    let cleanSummary = partialSummary.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+    cleanSummary = cleanSummary.replace(/<think>[\s\S]*?<\/think>/g, '');
     summary.value = await marked(cleanSummary);
 
     isSummaryGenerated.value = true;
