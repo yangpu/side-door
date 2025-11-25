@@ -34,6 +34,6 @@ export default defineConfig({
     },
   },
   webExt: {
-    startUrls: ['file:///Users/yangpu/repositories/ruoji/side-door/test-page.html'],
+    startUrls: ['http://localhost:8080'],
   },
 });

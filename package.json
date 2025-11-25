@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
+    "serve": "node dev-server.js",
+    "dev:with-server": "npm run serve & npm run dev",
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
@@ -22,7 +24,7 @@
     "@mozilla/readability": "^0.6.0",
     "@popperjs/core": "^2.11.8",
     "@simonwep/pickr": "^1.9.1",
-    "@supabase/supabase-js": "^2.83.0",
+    "@supabase/supabase-js": "^2.84.0",
     "@types/quill": "^2.0.14",
     "extract-date": "^2.8.2",
     "franc": "^6.2.0",
@@ -32,8 +34,8 @@
     "jest": "^30.2.0",
     "js-beautify": "^1.15.4",
     "jspdf": "^3.0.4",
-    "marked": "^17.0.0",
-    "monaco-editor": "^0.54.0",
+    "marked": "^17.0.1",
+    "monaco-editor": "^0.55.1",
     "ollama": "^0.6.3",
     "pdfjs-dist": "^5.4.394",
     "quill": "^2.0.3",
@@ -50,7 +52,7 @@
     "@types/marked": "^6.0.0",
     "@wxt-dev/module-vue": "^1.0.3",
     "typescript": "^5.9.3",
-    "vue-tsc": "^3.1.4",
+    "vue-tsc": "^3.1.5",
     "wxt": "^0.20.11"
   }
 }

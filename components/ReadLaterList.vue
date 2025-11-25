@@ -178,28 +178,40 @@ function openOriginalUrl(url: string) {
 
 // 打开 HTML 或 PDF 文件
 async function openFile(fileUrl: string) {
-  // 如果是HTML文件，下载后在新标签页中渲染
-  if (fileUrl.includes('.html')) {
-    try {
-      const response = await fetch(fileUrl);
-      const htmlContent = await response.text();
-      
-      // 创建一个blob URL并在新标签页打开
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const blobUrl = URL.createObjectURL(blob);
-      const newWindow = window.open(blobUrl, '_blank');
-      
-      // 清理blob URL（延迟释放，确保页面已加载）
-      if (newWindow) {
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-      }
-    } catch (error) {
-      console.error('打开HTML文件失败:', error);
-      toast.error('无法打开HTML文件');
-    }
-  } else {
-    // PDF 直接打开
+  // PDF 直接打开
+  if (!fileUrl.includes('.html')) {
     window.open(fileUrl, '_blank');
+    return;
+  }
+
+  // HTML 文件需要特殊处理以确保渲染而非显示源码
+  try {
+    // 先打开一个新窗口（避免 popup 被拦截）
+    const newWindow = window.open('about:blank', '_blank');
+    if (!newWindow) {
+      toast.error('请允许弹出窗口');
+      return;
+    }
+
+    // 显示加载提示
+    newWindow.document.write('<html><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;"><div>加载中...</div></body></html>');
+
+    // 异步获取 HTML 内容
+    const response = await fetch(fileUrl);
+    const htmlContent = await response.text();
+    
+    // 创建 Blob URL 并加载
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    
+    // 在新窗口中加载内容
+    newWindow.location.href = blobUrl;
+    
+    // 页面加载后清理 Blob URL
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+  } catch (error) {
+    console.error('打开HTML文件失败:', error);
+    toast.error('无法打开HTML文件');
   }
 }
 
