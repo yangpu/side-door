@@ -8,6 +8,7 @@ export default defineConfig({
     description: '一个用于阅读和总结网页内容的扩展',
     action: {
       default_title: '旁门-帮你简读文章', // 修改这里的默认tooltip
+      default_popup: 'popup.html',
     },
     host_permissions: [
       '<all_urls>',
@@ -24,7 +25,7 @@ export default defineConfig({
     ],
     web_accessible_resources: [
       {
-        resources: ['popup.html'],
+        resources: ['popup.html', 'reader.html'],
         matches: ['<all_urls>'],
       },
     ],

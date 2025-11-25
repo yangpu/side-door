@@ -1,31 +1,15 @@
 <script lang="ts" setup>
-import { ref, onMounted } from 'vue';
+import Menu from '../../components/Menu.vue';
+import { onMounted } from 'vue';
 import { browser } from 'wxt/browser';
-import PopupHome from './PopupHome.vue';
-import PopupReadLaterList from './PopupReadLaterList.vue';
-import PopupBlocklistManager from './PopupBlocklistManager.vue';
-import type { Article } from '../../types/article';
-
-type Page = 'home' | 'articles' | 'blocklist';
-
-const currentPage = ref<Page>('home');
 
 // 同步主题
 const syncTheme = () => {
   const theme = localStorage.getItem('READER_THEME') || 'light';
   document.documentElement.setAttribute('data-theme', theme);
+  // 确保 body 也有正确的主题类
   document.body.setAttribute('data-theme', theme);
 };
-
-// 页面导航
-function navigateTo(page: Page) {
-  currentPage.value = page;
-}
-
-// 在新标签页打开文章
-function openArticleInNewTab(article: Article) {
-  window.open(article.url, '_blank');
-}
 
 onMounted(async () => {
   const tabs = await browser.tabs.query({ active: true, currentWindow: true });
@@ -53,22 +37,21 @@ onMounted(async () => {
 });
 
 function updateTooltip(url: string) {
-  let tooltip = '旁门 - 管理中心';
+  let tooltip = '旁门-帮你简读文章';
+
+  if (url.includes('news')) {
+    tooltip = '旁门-帮你简读新闻';
+  } else if (url.includes('blog')) {
+    tooltip = '旁门-帮你简读博客';
+  }
+
   browser.action.setTitle({ title: tooltip });
 }
 </script>
 
 <template>
   <div class="app-container">
-    <!-- Home Page -->
-    <PopupHome v-if="currentPage === 'home'" @navigate="navigateTo" @openArticle="openArticleInNewTab" />
-
-    <!-- Articles List Page -->
-    <PopupReadLaterList v-else-if="currentPage === 'articles'" @navigate="navigateTo"
-      @openArticle="openArticleInNewTab" />
-
-    <!-- Blocklist Manager Page -->
-    <PopupBlocklistManager v-else-if="currentPage === 'blocklist'" @navigate="navigateTo" />
+    <Menu />
   </div>
 </template>
 
@@ -110,7 +93,7 @@ body[data-theme='dark'] {
 
 .app-container {
   width: 100%;
-  height: 100%;
+  min-height: 100vh;
   background-color: var(--sd-background-primary);
   overflow-x: hidden;
   box-sizing: border-box;

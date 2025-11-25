@@ -75,6 +75,9 @@ const handleKeyDown = (event: KeyboardEvent) => {
   }
 };
 
+// 导入屏蔽服务
+import { BlocklistService } from '../services/blocklistService';
+
 // 在 script setup 部分添加 PDF 检测函数
 function isPDFDocument(): boolean {
   // 检查 Content-Type
@@ -116,6 +119,12 @@ function isPDFDocument(): boolean {
   return false;
 }
 
+// 检查当前页面是否被屏蔽
+async function checkIfBlocked(): Promise<boolean> {
+  const currentUrl = window.location.href;
+  return await BlocklistService.isBlocked(currentUrl);
+}
+
 // 从存储中读取状态
 const loadState = async () => {
   const result = await browser.storage.local.get(['popupState']) as unknown as StorageResult;
@@ -132,7 +141,7 @@ const loadState = async () => {
 };
 
 const setPopupUrl = async () => {
-  const url = browser.runtime.getURL('/popup.html');
+  const url = browser.runtime.getURL('/reader.html');
   const pageUrl = window.location.href;
   
   // 将页面HTML存储到localStorage，避免URL过长
@@ -264,8 +273,11 @@ onMounted(async () => {
   // 检查是否为PDF文档
   const isPDF = isPDFDocument();
 
-  // 如果是side-door页面或PDF文档，默认隐藏悬浮按钮
-  if (sideDoorMeta || isPDF) {
+  // 检查是否被屏蔽
+  const isBlocked = await checkIfBlocked();
+
+  // 如果是side-door页面、PDF文档或被屏蔽的页面，默认隐藏悬浮按钮
+  if (sideDoorMeta || isPDF || isBlocked) {
     showPopup.value = false;
     isPopupVisible.value = false;
     isImmersive.value = false;
@@ -372,7 +384,7 @@ const enterImmersive = (event: MouseEvent) => {
 
 const refreshIframe = () => {
   // 通过添加时间戳参数强制刷新 iframe
-  const url = browser.runtime.getURL('/popup.html');
+  const url = browser.runtime.getURL('/reader.html');
   const pageUrl = window.location.href;
   
   // 更新 localStorage 中的内容

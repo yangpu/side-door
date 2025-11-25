@@ -1,3 +1,5 @@
+import { browser } from 'wxt/browser';
+
 export default defineContentScript({
   matches: ['<all_urls>'],
   async main() {
@@ -104,6 +106,15 @@ export default defineContentScript({
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         // 当页面从隐藏变为可见时（包括从其他标签页返回）
+        initialize();
+      }
+    });
+
+    // 监听来自 popup 的重新注入消息
+    browser.runtime.onMessage.addListener((message) => {
+      if (message.type === 'REINJECT_FAB') {
+        console.log('[Content Script] Received REINJECT_FAB message');
+        isInitialized = false;
         initialize();
       }
     });

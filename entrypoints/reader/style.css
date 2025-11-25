@@ -28,9 +28,9 @@
   padding: 0;
 }
 
-/* html 和 body 的尺寸在 index.html 中通过内联样式设置，以确保扩展弹窗尺寸正确 */
 html,
 body {
+  width: 100%;
   overflow-x: hidden;
   margin: 0;
   padding: 0;
@@ -67,18 +67,6 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--sd-text-secondary);
-}
-
-/* 按钮通用样式 */
-button {
-  font-family: inherit;
-  outline: none;
-  cursor: pointer;
-}
-
-button:focus-visible {
-  outline: 2px solid var(--sd-accent-color);
-  outline-offset: 2px;
 }
 
 img {
