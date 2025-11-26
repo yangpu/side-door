@@ -155,10 +155,56 @@ function setupTabUrlListener() {
 
 // 组件挂载时自动解析并显示内容
 onMounted(() => {
-  setTimeout(() => {
-    // 从URL中解析出url参数
+  setTimeout(async () => {
+    // 从URL中解析出url参数和articleId参数
     const urlParams = new URLSearchParams(window.location.search);
     const url = urlParams.get('url');
+    const articleId = urlParams.get('articleId');
+    
+    // 如果有articleId参数，从Supabase加载文章内容
+    if (articleId) {
+      try {
+        // 动态导入ReadLaterService
+        const { ReadLaterService } = await import('../services/readLaterService');
+        const article = await ReadLaterService.getArticleById(articleId);
+        
+        if (article && article.content) {
+          // 构造包含文章内容的HTML
+          const articleHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${article.title || '文章'}</title>
+</head>
+<body>
+  <article>
+    <h1>${article.title || ''}</h1>
+    ${article.author ? `<p class="author">作者: ${article.author}</p>` : ''}
+    ${article.published_date ? `<p class="date">发布时间: ${new Date(article.published_date).toLocaleDateString('zh-CN')}</p>` : ''}
+    <div class="content">${article.content}</div>
+  </article>
+</body>
+</html>`;
+          
+          parsedContent.value = articleHtml;
+          currentTabUrl.value = article.url || '';
+          refreshKey.value++;
+          setupTabUrlListener();
+          return;
+        } else {
+          console.error('文章内容不存在');
+          parsedContent.value = '<html><body><p style="text-align:center;padding:40px;color:#666;">文章内容不存在</p></body></html>';
+          refreshKey.value++;
+          return;
+        }
+      } catch (error) {
+        console.error('加载文章失败:', error);
+        parsedContent.value = '<html><body><p style="text-align:center;padding:40px;color:#666;">加载文章失败</p></body></html>';
+        refreshKey.value++;
+        return;
+      }
+    }
     
     // 尝试从localStorage获取页面HTML（从FloatingButton传递）
     try {

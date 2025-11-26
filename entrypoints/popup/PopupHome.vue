@@ -40,21 +40,15 @@
 
       <!-- Recent Articles List -->
       <div v-else class="article-list">
-        <div v-for="article in recentArticles" :key="article.id" @click="openArticle(article)" class="article-item">
-          <div v-if="article.cover_image" class="article-cover">
-            <img :src="article.cover_image" :alt="article.title" />
-          </div>
-          <div class="article-info">
-            <h3 class="article-title">{{ article.title }}</h3>
-            <p v-if="article.ai_summary || article.summary" class="article-summary">
-              {{ truncate(article.ai_summary || article.summary || '', 60) }}
-            </p>
-            <div class="article-meta">
-              <span v-if="article.author" class="meta-item">{{ article.author }}</span>
-              <span v-if="article.published_date" class="meta-item">{{ formatDate(article.published_date) }}</span>
-            </div>
-          </div>
-        </div>
+        <ArticleCard 
+          v-for="article in recentArticles" 
+          :key="article.id" 
+          :article="article"
+          @click="openArticleInNewTab"
+          @openFile="openFile"
+          @openOriginalUrl="openOriginalUrl"
+          @delete="deleteArticle"
+        />
       </div>
     </div>
 
@@ -126,9 +120,10 @@ import { ref, onMounted } from 'vue';
 import { browser } from 'wxt/browser';
 import { ReadLaterService } from '../../services/readLaterService';
 import { BlocklistService } from '../../services/blocklistService';
+import ArticleCard from '../../components/ArticleCard.vue';
 import type { Article } from '../../types/article';
 
-const emit = defineEmits(['navigate']);
+const emit = defineEmits(['navigate', 'openArticleDetail']);
 
 const loading = ref(false);
 const recentArticles = ref<Article[]>([]);
@@ -189,10 +184,81 @@ async function checkBlockStatus() {
   }
 }
 
-// 打开文章
-function openArticle(article: Article) {
-  // 在新标签页中打开文章
-  window.open(article.url, '_blank');
+// 在新标签页中打开文章内容（阅读模式）
+// 使用reader页面打开，保持和阅读器弹窗完全一致的渲染效果
+async function openArticleInNewTab(article: Article) {
+  try {
+    // 在新标签页中打开reader页面，并通过URL参数传递文章ID
+    const readerBasePath = browser.runtime.getURL('/reader.html');
+    const readerUrl = `${readerBasePath}?articleId=${article.id}`;
+    window.open(readerUrl, '_blank');
+  } catch (error) {
+    console.error('打开文章失败:', error);
+    alert('打开文章失败: ' + (error as Error).message);
+  }
+}
+
+// 打开原文
+function openOriginalUrl(url: string) {
+  window.open(url, '_blank');
+}
+
+// 打开 HTML 或 PDF 文件
+// HTML文件：图片base64编码的单文件，适合离线阅读但加载较慢
+// PDF文件：直接打开
+async function openFile(fileUrl: string) {
+  if (!fileUrl) {
+    alert('文件URL不存在');
+    return;
+  }
+
+  // PDF 直接打开
+  if (fileUrl.toLowerCase().endsWith('.pdf')) {
+    window.open(fileUrl, '_blank');
+    return;
+  }
+
+  // HTML 文件（base64编码图片的单文件版本）
+  try {
+    // 异步获取 HTML 内容
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const htmlContent = await response.text();
+    
+    // 创建 Blob URL 并在新标签页打开
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, '_blank');
+    
+    // 页面加载后清理 Blob URL
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+  } catch (error) {
+    console.error('打开HTML文件失败:', error);
+    alert('无法打开HTML文件: ' + (error as Error).message);
+  }
+}
+
+// 删除文章
+async function deleteArticle(article: Article) {
+  if (!confirm(`确定要删除「${article.title}」吗？`)) {
+    return;
+  }
+
+  try {
+    const result = await ReadLaterService.deleteArticle(article.id!);
+    if (result.success) {
+      // 从列表中移除
+      recentArticles.value = recentArticles.value.filter((a) => a.id !== article.id);
+      alert('文章已删除');
+    } else {
+      alert('删除失败: ' + (result.error || '未知错误'));
+    }
+  } catch (error) {
+    console.error('删除文章失败:', error);
+    alert('删除失败，请重试');
+  }
 }
 
 // 查看所有文章
@@ -304,29 +370,6 @@ async function reInjectFAB() {
 // 管理屏蔽列表
 function manageBlocklist() {
   emit('navigate', 'blocklist');
-}
-
-// 格式化日期
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) return '今天';
-    if (days === 1) return '昨天';
-    if (days < 7) return `${days}天前`;
-    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-  } catch {
-    return dateStr;
-  }
-}
-
-// 截断文本
-function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + '...';
 }
 
 onMounted(() => {
@@ -467,83 +510,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.article-item {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--sd-border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  background: var(--sd-background-primary);
-}
-
-.article-item:hover {
-  border-color: var(--sd-accent-color);
-  background: var(--sd-hover-background);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.article-cover {
-  flex-shrink: 0;
-  width: 80px;
-  height: 80px;
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--sd-background-secondary);
-}
-
-.article-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.article-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.article-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--sd-text-primary);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.article-summary {
-  margin: 0;
-  font-size: 12px;
-  color: var(--sd-text-secondary);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.article-meta {
-  display: flex;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--sd-text-secondary);
-  margin-top: auto;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
 }
 
 /* Actions Section */

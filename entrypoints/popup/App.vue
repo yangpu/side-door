@@ -4,11 +4,14 @@ import { browser } from 'wxt/browser';
 import PopupHome from './PopupHome.vue';
 import PopupReadLaterList from './PopupReadLaterList.vue';
 import PopupBlocklistManager from './PopupBlocklistManager.vue';
+import ReadLaterDetail from '../../components/ReadLaterDetail.vue';
 import type { Article } from '../../types/article';
 
-type Page = 'home' | 'articles' | 'blocklist';
+type Page = 'home' | 'articles' | 'blocklist' | 'article-detail';
 
 const currentPage = ref<Page>('home');
+const previousPage = ref<Page>('home');
+const selectedArticleId = ref<string | null>(null);
 
 // 同步主题
 const syncTheme = () => {
@@ -19,7 +22,26 @@ const syncTheme = () => {
 
 // 页面导航
 function navigateTo(page: Page) {
+  if (currentPage.value !== 'article-detail') {
+    previousPage.value = currentPage.value;
+  }
   currentPage.value = page;
+  if (page !== 'article-detail') {
+    selectedArticleId.value = null;
+  }
+}
+
+// 打开文章详情
+function openArticleDetail(articleId: string) {
+  previousPage.value = currentPage.value;
+  selectedArticleId.value = articleId;
+  currentPage.value = 'article-detail';
+}
+
+// 从详情页返回
+function backFromDetail() {
+  selectedArticleId.value = null;
+  currentPage.value = previousPage.value;
 }
 
 // 在新标签页打开文章
@@ -61,14 +83,18 @@ function updateTooltip(url: string) {
 <template>
   <div class="app-container">
     <!-- Home Page -->
-    <PopupHome v-if="currentPage === 'home'" @navigate="navigateTo" @openArticle="openArticleInNewTab" />
+    <PopupHome v-if="currentPage === 'home'" @navigate="navigateTo" @openArticleDetail="openArticleDetail" />
 
     <!-- Articles List Page -->
     <PopupReadLaterList v-else-if="currentPage === 'articles'" @navigate="navigateTo"
-      @openArticle="openArticleInNewTab" />
+      @openArticleDetail="openArticleDetail" />
 
     <!-- Blocklist Manager Page -->
     <PopupBlocklistManager v-else-if="currentPage === 'blocklist'" @navigate="navigateTo" />
+
+    <!-- Article Detail Page -->
+    <ReadLaterDetail v-else-if="currentPage === 'article-detail' && selectedArticleId" :articleId="selectedArticleId"
+      @back="backFromDetail" @close="backFromDetail" />
   </div>
 </template>
 

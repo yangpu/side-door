@@ -33,60 +33,15 @@
 
       <!-- Article List -->
       <div v-else class="article-grid">
-        <div v-for="article in articles" :key="article.id" class="article-card">
-          <!-- Cover Image -->
-          <div v-if="article.cover_image" class="article-cover" @click="openArticle(article)">
-            <img :src="article.cover_image" :alt="article.title" />
-          </div>
-
-          <!-- Content -->
-          <div class="article-content" @click="openArticle(article)">
-            <h3 class="article-title">{{ article.title }}</h3>
-            <p v-if="article.ai_summary || article.summary" class="article-summary">
-              {{ article.ai_summary || article.summary }}
-            </p>
-            <div class="article-meta">
-              <span v-if="article.author" class="meta-item">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                {{ article.author }}
-              </span>
-              <span v-if="article.published_date" class="meta-item">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="16" y1="2" x2="16" y2="6"></line>
-                  <line x1="8" y1="2" x2="8" y2="6"></line>
-                  <line x1="3" y1="10" x2="21" y2="10"></line>
-                </svg>
-                {{ formatDate(article.published_date) }}
-              </span>
-            </div>
-          </div>
-
-          <!-- Actions -->
-          <div class="article-actions">
-            <button class="action-btn primary" @click.stop="openArticleInNewTab(article)" title="在新标签页中打开">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <line x1="10" y1="14" x2="21" y2="3"></line>
-              </svg>
-              打开
-            </button>
-            <button class="action-btn" @click.stop="deleteArticle(article)" title="删除">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-            </button>
-          </div>
-        </div>
+        <ArticleCard 
+          v-for="article in articles" 
+          :key="article.id" 
+          :article="article"
+          @click="openArticleInNewTab"
+          @openFile="openFile"
+          @openOriginalUrl="openOriginalUrl"
+          @delete="deleteArticle"
+        />
       </div>
     </div>
 
@@ -111,10 +66,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { browser } from 'wxt/browser';
 import { ReadLaterService } from '../../services/readLaterService';
+import ArticleCard from '../../components/ArticleCard.vue';
 import type { Article } from '../../types/article';
 
-const emit = defineEmits(['navigate']);
+const emit = defineEmits(['navigate', 'openArticleDetail']);
 
 const loading = ref(false);
 const articles = ref<Article[]>([]);
@@ -141,14 +98,60 @@ async function loadArticles() {
   }
 }
 
-// 打开文章（在新标签页中）
-function openArticle(article: Article) {
-  window.open(article.url, '_blank');
+// 在新标签页中打开文章内容（阅读模式）
+// 使用reader页面打开，保持和阅读器弹窗完全一致的渲染效果
+async function openArticleInNewTab(article: Article) {
+  try {
+    // 在新标签页中打开reader页面，并通过URL参数传递文章ID
+    const readerBasePath = browser.runtime.getURL('/reader.html');
+    const readerUrl = `${readerBasePath}?articleId=${article.id}`;
+    window.open(readerUrl, '_blank');
+  } catch (error) {
+    console.error('打开文章失败:', error);
+    alert('打开文章失败: ' + (error as Error).message);
+  }
 }
 
-// 在新标签页中打开
-function openArticleInNewTab(article: Article) {
-  window.open(article.url, '_blank');
+// 打开原文
+function openOriginalUrl(url: string) {
+  window.open(url, '_blank');
+}
+
+// 打开 HTML 或 PDF 文件
+// HTML文件：图片base64编码的单文件，适合离线阅读但加载较慢
+// PDF文件：直接打开
+async function openFile(fileUrl: string) {
+  if (!fileUrl) {
+    alert('文件URL不存在');
+    return;
+  }
+
+  // PDF 直接打开
+  if (fileUrl.toLowerCase().endsWith('.pdf')) {
+    window.open(fileUrl, '_blank');
+    return;
+  }
+
+  // HTML 文件（base64编码图片的单文件版本）
+  try {
+    // 异步获取 HTML 内容
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const htmlContent = await response.text();
+    
+    // 创建 Blob URL 并在新标签页打开
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, '_blank');
+    
+    // 页面加载后清理 Blob URL
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+  } catch (error) {
+    console.error('打开HTML文件失败:', error);
+    alert('无法打开HTML文件: ' + (error as Error).message);
+  }
 }
 
 // 删除文章
@@ -191,16 +194,6 @@ async function nextPage() {
   if (currentPage.value < totalPages.value) {
     currentPage.value++;
     await loadArticles();
-  }
-}
-
-// 格式化日期
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-  } catch {
-    return dateStr;
   }
 }
 
@@ -322,129 +315,6 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
-}
-
-.article-card {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--sd-border-color);
-  border-radius: 8px;
-  overflow: hidden;
-  transition: all 0.2s;
-  background: var(--sd-background-primary);
-}
-
-.article-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
-  border-color: var(--sd-accent-color);
-}
-
-.article-cover {
-  width: 100%;
-  height: 120px;
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--sd-background-secondary);
-}
-
-.article-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s;
-}
-
-.article-cover:hover img {
-  transform: scale(1.05);
-}
-
-.article-content {
-  flex: 1;
-  padding: 12px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.article-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--sd-text-primary);
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.article-summary {
-  margin: 0;
-  font-size: 12px;
-  color: var(--sd-text-secondary);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.article-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--sd-text-secondary);
-  margin-top: auto;
-}
-
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-
-.meta-item svg {
-  opacity: 0.7;
-}
-
-.article-actions {
-  display: flex;
-  gap: 6px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--sd-border-color);
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  font-size: 12px;
-  border: 1px solid var(--sd-border-color);
-  border-radius: 4px;
-  background: var(--sd-background-primary);
-  color: var(--sd-text-primary);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.action-btn:hover {
-  background: var(--sd-hover-background);
-  border-color: var(--sd-accent-color);
-}
-
-.action-btn.primary {
-  flex: 1;
-  background: var(--sd-accent-color);
-  color: white;
-  border-color: var(--sd-accent-color);
-}
-
-.action-btn.primary:hover {
-  opacity: 0.9;
 }
 
 /* Pagination */
