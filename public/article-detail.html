@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文章详情 - SideDoor</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 引用阅读器样式库 -->
+  <link rel="stylesheet" href="../components/Reader.css">
+  <style>
+    /* 页面特定的额外样式 */
+    
+    /* 修复双滚动条和白边问题 */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--background-color);
+    }
+
+    /* 让 .reader-sidedoor 成为唯一的滚动容器 */
+    .reader-sidedoor {
+      height: 100vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .detail-header {
+      background: var(--background-color);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .header-title:hover {
+      opacity: 0.8;
+    }
+
+    .logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+    }
+
+    .header-title h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-color);
+      margin: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .theme-btn {
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--background-color);
+      color: var(--text-color);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .theme-btn:hover {
+      background: var(--hover-bg-color);
+      border-color: var(--link-color);
+    }
+
+    .theme-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    /* Loading & Error States */
+    .loading-state,
+    .error-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      padding: 60px 20px;
+      color: var(--secondary-text-color);
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-color);
+      border-top-color: var(--link-color);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error-state {
+      color: #f44;
+    }
+
+    .original-link-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--background-color);
+      color: var(--link-color);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .original-link-btn:hover {
+      background: var(--hover-bg-color);
+      border-color: var(--link-color);
+    }
+
+    [data-theme='dark'] .detail-header {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="reader-sidedoor">
+    <div class="detail-header">
+      <div class="header-content">
+        <div class="header-title" onclick="goToHome()">
+          <img src="icon/128.png" alt="SideDoor Logo" class="logo">
+          <h1>SideDoor</h1>
+        </div>
+        <div class="header-actions">
+          <button class="theme-btn" onclick="toggleTheme()" title="切换主题">
+            <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="reader-container" id="content">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>加载文章中...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://rimhmaeecdcrhuqbisjv.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpbWhtYWVlY2Rjcmh1cWJpc2p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NTgwNDYsImV4cCI6MjA3OTAzNDA0Nn0.rSiGYktT3oESNSGRTY8S2hF_0_aoS6xNzzfh4d71BQY';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function goToHome() {
+      window.location.href = '/';
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme') || 'light';
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      html.setAttribute('data-theme', newTheme);
+      localStorage.setItem('READER_THEME', newTheme);
+      
+      updateThemeIcon(newTheme);
+    }
+
+    function updateThemeIcon(theme) {
+      const lightIcon = document.getElementById('theme-icon-light');
+      const darkIcon = document.getElementById('theme-icon-dark');
+      
+      if (theme === 'dark') {
+        lightIcon.style.display = 'none';
+        darkIcon.style.display = 'block';
+      } else {
+        lightIcon.style.display = 'block';
+        darkIcon.style.display = 'none';
+      }
+    }
+
+    function initTheme() {
+      const theme = localStorage.getItem('READER_THEME') || 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+      updateThemeIcon(theme);
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('zh-CN', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+      } catch {
+        return dateStr;
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    async function loadArticle() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const articleId = urlParams.get('articleId');
+
+      console.log('加载文章 ID:', articleId);
+
+      if (!articleId) {
+        document.getElementById('content').innerHTML = '<div class="error-state"><p>缺少文章ID参数</p></div>';
+        return;
+      }
+
+      try {
+        const { data: article, error } = await supabase
+          .from('articles')
+          .select('*')
+          .eq('id', articleId)
+          .single();
+
+        console.log('文章数据:', article);
+
+        if (error) throw error;
+
+        if (!article) {
+          document.getElementById('content').innerHTML = '<div class="error-state"><p>文章不存在</p></div>';
+          return;
+        }
+
+        // 构建文章元信息
+        let metaItems = [];
+        if (article.author) {
+          metaItems.push(`<span class="detail-item">
+            <span class="detail-label">作者:</span>
+            <span class="detail-value">${escapeHtml(article.author)}</span>
+          </span>`);
+        }
+        if (article.published_date) {
+          metaItems.push(`<span class="detail-item">
+            <span class="detail-label">发布时间:</span>
+            <span class="detail-value">${formatDate(article.published_date)}</span>
+          </span>`);
+        }
+        if (article.length) {
+          metaItems.push(`<span class="detail-item">
+            <span class="detail-label">字数:</span>
+            <span class="detail-value">${article.length} 字</span>
+          </span>`);
+        }
+        if (article.url) {
+          metaItems.push(`<span class="detail-item">
+            <button class="original-link-btn" onclick="window.open('${escapeHtml(article.url)}', '_blank')">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
+              查看原文
+            </button>
+          </span>`);
+        }
+
+        // 构建摘要部分
+        let summaryHtml = '';
+        if (article.ai_summary || article.summary) {
+          summaryHtml = `<div class="summary">
+            <h3 class="summary-title">摘要</h3>
+            <div class="summary-content">${article.ai_summary || article.summary}</div>
+          </div>`;
+        }
+
+        // 渲染文章
+        document.getElementById('content').innerHTML = `
+          <h1 class="article-title">${escapeHtml(article.title || '无标题')}</h1>
+          <div class="article-details">
+            ${metaItems.join('')}
+          </div>
+          ${summaryHtml}
+          <div class="article-content">
+            ${article.content || '<p>文章内容为空</p>'}
+          </div>
+        `;
+
+      } catch (error) {
+        console.error('加载文章失败:', error);
+        document.getElementById('content').innerHTML = `<div class="error-state"><p>加载文章失败: ${error.message}</p></div>`;
+      }
+    }
+
+    // 页面加载时执行
+    initTheme();
+    loadArticle();
+  </script>
+</body>
+</html>

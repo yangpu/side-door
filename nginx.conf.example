@@ -1,0 +1,131 @@
+# ====================================================================
+# SideDoor 稍后阅读主页 - Nginx 配置示例
+# ====================================================================
+# 
+# 使用说明：
+# 1. 复制此文件为 nginx.conf（或其他名称）
+# 2. 修改配置中的域名、路径等
+# 3. 复制到 nginx 配置目录：
+#    - Ubuntu/Debian: /etc/nginx/sites-available/
+#    - CentOS/RHEL: /etc/nginx/conf.d/
+# 4. 创建软链接（Ubuntu/Debian）：
+#    sudo ln -s /etc/nginx/sites-available/sidedoor-read-later /etc/nginx/sites-enabled/
+# 5. 测试配置：sudo nginx -t
+# 6. 重载配置：sudo nginx -s reload
+# ====================================================================
+
+# 方案 1: 直接提供静态 HTML 文件（推荐）
+server {
+    listen 80;
+    server_name read-later.yourdomain.com;  # 修改为你的域名
+
+    # 文档根目录
+    root /var/www/sidedoor;  # 修改为你的部署路径
+    
+    # 主页
+    location / {
+        try_files /read-later-standalone.html =404;
+        
+        # 设置正确的 Content-Type
+        add_header Content-Type "text/html; charset=utf-8";
+        
+        # CORS 头（如果需要跨域访问）
+        add_header Access-Control-Allow-Origin "*";
+        add_header Access-Control-Allow-Methods "GET, OPTIONS";
+        add_header Access-Control-Allow-Headers "Content-Type";
+        
+        # 缓存控制
+        add_header Cache-Control "public, max-age=3600";
+    }
+
+    # 健康检查端点
+    location /health {
+        access_log off;
+        return 200 '{"status":"ok","service":"read-later"}';
+        add_header Content-Type application/json;
+    }
+
+    # 日志
+    access_log /var/log/nginx/sidedoor-read-later-access.log;
+    error_log /var/log/nginx/sidedoor-read-later-error.log;
+}
+
+# ====================================================================
+
+# 方案 2: 反向代理到 Node.js 服务
+server {
+    listen 80;
+    server_name read-later.yourdomain.com;  # 修改为你的域名
+
+    location / {
+        proxy_pass http://localhost:3001;  # Node.js 服务地址
+        proxy_http_version 1.1;
+        
+        # 代理头
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # 日志
+    access_log /var/log/nginx/sidedoor-read-later-proxy-access.log;
+    error_log /var/log/nginx/sidedoor-read-later-proxy-error.log;
+}
+
+# ====================================================================
+
+# 方案 3: HTTPS 配置（推荐用于生产环境）
+server {
+    listen 80;
+    server_name read-later.yourdomain.com;  # 修改为你的域名
+    
+    # 重定向到 HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name read-later.yourdomain.com;  # 修改为你的域名
+
+    # SSL 证书（使用 Let's Encrypt 或其他证书）
+    ssl_certificate /etc/letsencrypt/live/read-later.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/read-later.yourdomain.com/privkey.pem;
+    
+    # SSL 配置
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # 文档根目录
+    root /var/www/sidedoor;  # 修改为你的部署路径
+    
+    location / {
+        try_files /read-later-standalone.html =404;
+        
+        add_header Content-Type "text/html; charset=utf-8";
+        add_header Access-Control-Allow-Origin "*";
+        add_header Cache-Control "public, max-age=3600";
+        
+        # HSTS
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    }
+
+    # 健康检查
+    location /health {
+        access_log off;
+        return 200 '{"status":"ok","service":"read-later","protocol":"https"}';
+        add_header Content-Type application/json;
+    }
+
+    # 日志
+    access_log /var/log/nginx/sidedoor-read-later-ssl-access.log;
+    error_log /var/log/nginx/sidedoor-read-later-ssl-error.log;
+}

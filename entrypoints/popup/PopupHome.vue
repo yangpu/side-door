@@ -5,6 +5,14 @@
       <div class="header-title">
         <img src="/icon/128.png" alt="SideDoor" class="logo" />
         <h1>旁门</h1>
+        <a href="http://localhost:3001" target="_blank" class="home-link" title="打开稍后阅读主页">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+        </a>
       </div>
     </div>
 
@@ -411,6 +419,26 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 600;
   color: var(--sd-text-primary);
+}
+
+.home-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--sd-border-color);
+  border-radius: 6px;
+  background: var(--sd-background-primary);
+  color: var(--sd-text-secondary);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.home-link:hover {
+  background: var(--sd-hover-background);
+  border-color: var(--sd-accent-color);
+  color: var(--sd-accent-color);
 }
 
 /* Recent Section */

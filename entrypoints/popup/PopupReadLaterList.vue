@@ -9,7 +9,14 @@
         </svg>
       </button>
       <h2>稍后阅读</h2>
-      <div class="header-spacer"></div>
+      <a href="http://localhost:3001" target="_blank" class="home-link" title="打开稍后阅读主页">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+          <polyline points="15 3 21 3 21 9"></polyline>
+          <line x1="10" y1="14" x2="21" y2="3"></line>
+        </svg>
+      </a>
     </div>
 
     <!-- Content -->
@@ -246,8 +253,24 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.header-spacer {
+.home-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
+  height: 32px;
+  border: 1px solid var(--sd-border-color);
+  border-radius: 6px;
+  background: var(--sd-background-primary);
+  color: var(--sd-text-secondary);
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.home-link:hover {
+  background: var(--sd-hover-background);
+  border-color: var(--sd-accent-color);
+  color: var(--sd-accent-color);
 }
 
 /* Content */

@@ -7,14 +7,17 @@
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
-    "serve": "node dev-server.js",
-    "dev:with-server": "npm run serve & npm run dev",
+    "dev:with-server": "node dev-server-unified.js",
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "vue-tsc --noEmit",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "upload:read-later-home": "npx tsx scripts/upload-read-later-home.ts",
+    "upload:standalone": "npx tsx scripts/upload-standalone.ts",
+    "upload:fetch": "npx tsx scripts/upload-with-fetch.ts",
+    "test:storage": "npx tsx scripts/test-storage-access.ts"
   },
   "dependencies": {
     "@babel/preset-env": "^7.28.5",
@@ -36,6 +39,7 @@
     "jspdf": "^3.0.4",
     "marked": "^17.0.1",
     "monaco-editor": "^0.55.1",
+    "node-fetch": "^3.3.2",
     "ollama": "^0.6.3",
     "pdfjs-dist": "^5.4.394",
     "quill": "^2.0.3",

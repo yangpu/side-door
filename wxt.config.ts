@@ -3,6 +3,11 @@ import { defineConfig } from 'wxt';
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
+  dev: {
+    server: {
+      port: 5173,
+    },
+  },
   manifest: {
     name: 'Side Door',
     description: '一个用于阅读和总结网页内容的扩展',
@@ -25,7 +30,7 @@ export default defineConfig({
     ],
     web_accessible_resources: [
       {
-        resources: ['popup.html', 'reader.html'],
+        resources: ['popup.html', 'reader.html', 'read-later-home.html', 'article-viewer.html'],
         matches: ['<all_urls>'],
       },
     ],
