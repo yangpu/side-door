@@ -4813,8 +4813,9 @@ watch(currentTheme, (newTheme) => {
   <div class="reader-sidedoor">
     <!-- 稍后阅读列表弹窗 -->
     <div v-if="showReadLaterList" class="read-later-modal">
-      <ReadLaterList v-if="!selectedArticleId" @close="showReadLaterList = false" @openArticle="openSavedArticle" />
-      <ReadLaterDetail v-else :articleId="selectedArticleId" @close="showReadLaterList = false"
+      <!-- 使用 v-show 保持组件实例，避免滚动位置丢失 -->
+      <ReadLaterList v-show="!selectedArticleId" @close="showReadLaterList = false" @openArticle="openSavedArticle" />
+      <ReadLaterDetail v-if="selectedArticleId" :articleId="selectedArticleId" @close="showReadLaterList = false"
         @back="selectedArticleId = null" />
     </div>
 

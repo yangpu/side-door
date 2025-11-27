@@ -30,6 +30,21 @@
 
     <!-- Main Content -->
     <main class="main-content">
+      <!-- Offline Status Banner -->
+      <div v-if="offlineMessage" class="offline-banner">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+          <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+          <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+          <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+          <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+          <line x1="12" y1="20" x2="12.01" y2="20"></line>
+        </svg>
+        <span>{{ offlineMessage }}</span>
+      </div>
+
       <!-- Loading -->
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
@@ -176,8 +191,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { ReadLaterService } from '../../services/readLaterService';
+import { ref, onMounted, computed } from 'vue';
+import { offlineService } from '../../utils/offlineService';
+import { indexedDB } from '../../utils/indexedDB';
 import type { Article } from '../../types/article';
 
 const loading = ref(false);
@@ -187,29 +203,58 @@ const pageSize = ref(12);
 const totalPages = ref(0);
 const total = ref(0);
 const isDarkMode = ref(false);
+const isOffline = ref(false);
+const networkStatus = ref<any>(null);
 
-// 加载文章列表
+// 计算显示的离线状态提示
+const offlineMessage = computed(() => {
+  if (!networkStatus.value) return '';
+  if (!networkStatus.value.online) return '离线模式 - 显示缓存数据';
+  if (!networkStatus.value.supabaseAvailable) return '服务暂时不可用 - 显示缓存数据';
+  return '';
+});
+
+// 加载文章列表（使用离线优先策略）
 async function loadArticles() {
   loading.value = true;
   try {
-    const result = await ReadLaterService.getArticles({
+    // 更新网络状态
+    networkStatus.value = offlineService.getNetworkStatus();
+    isOffline.value = offlineService.shouldUseOfflineData();
+
+    // 使用离线优先服务加载文章
+    const result = await offlineService.getArticles({
       page: currentPage.value,
       pageSize: pageSize.value,
     });
+    
     articles.value = result.articles;
     total.value = result.total;
     totalPages.value = result.totalPages;
   } catch (error) {
     console.error('加载文章列表失败:', error);
+    
+    // 如果加载失败，尝试从 IndexedDB 获取所有文章
+    try {
+      const allArticles = await indexedDB.getAllArticles();
+      const start = (currentPage.value - 1) * pageSize.value;
+      const end = start + pageSize.value;
+      articles.value = allArticles.slice(start, end);
+      total.value = allArticles.length;
+      totalPages.value = Math.ceil(allArticles.length / pageSize.value);
+      isOffline.value = true;
+    } catch (dbError) {
+      console.error('从 IndexedDB 加载失败:', dbError);
+    }
   } finally {
     loading.value = false;
   }
 }
 
-// 打开文章（在阅读器中打开）
+// 打开文章（在阅读器中打开，支持离线缓存）
 function openArticle(article: Article) {
-  // 使用独立的文章详情页面
-  const readerUrl = `/article-detail.html?articleId=${article.id}`;
+  // 使用 article-viewer 页面（支持 PWA 离线优先）
+  const readerUrl = `/article-viewer.html?articleId=${article.id}`;
   window.open(readerUrl, '_blank');
 }
 
@@ -289,12 +334,25 @@ function toggleTheme() {
 }
 
 // 初始化
-onMounted(() => {
+onMounted(async () => {
+  // 初始化 IndexedDB
+  await indexedDB.init();
+  
+  // 加载文章
   loadArticles();
   
   // 检查当前主题
   const theme = localStorage.getItem('READER_THEME') || 'light';
   isDarkMode.value = theme === 'dark';
+  
+  // 监听在线状态变化
+  window.addEventListener('online', () => {
+    loadArticles();
+  });
+  
+  window.addEventListener('offline', () => {
+    isOffline.value = true;
+  });
 });
 </script>
 
@@ -376,6 +434,24 @@ onMounted(() => {
   width: 100%;
   margin: 0 auto;
   padding: 32px;
+}
+
+/* Offline Banner */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #ffd93d 0%, #ffb938 100%);
+  color: #333;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(255, 185, 56, 0.3);
+}
+
+.offline-banner svg {
+  flex-shrink: 0;
 }
 
 /* Loading */

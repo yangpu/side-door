@@ -113,7 +113,6 @@ export default defineContentScript({
     // 监听来自 popup 的重新注入消息
     browser.runtime.onMessage.addListener((message) => {
       if (message.type === 'REINJECT_FAB') {
-        console.log('[Content Script] Received REINJECT_FAB message');
         isInitialized = false;
         initialize();
       }

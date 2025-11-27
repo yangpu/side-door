@@ -86,8 +86,41 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // 返回 true 表示异步发送响应
     return true;
   }
+
+  // 处理离线文章保存请求
+  if (message.type === 'SAVE_ARTICLE_OFFLINE') {
+    const { article } = message.payload;
+    
+    // 使用 IndexedDB 保存文章
+    import('../utils/indexedDB').then(({ indexedDB }) => {
+      return indexedDB.saveArticle(article);
+    }).then(() => {
+      sendResponse({ success: true });
+    }).catch((error) => {
+      console.error('[Background] 保存离线文章失败:', error);
+      sendResponse({ success: false, error: error.message });
+    });
+
+    return true;
+  }
+
+  // 处理获取离线文章请求
+  if (message.type === 'GET_ARTICLE_OFFLINE') {
+    const { articleId } = message.payload;
+    
+    import('../utils/indexedDB').then(({ indexedDB }) => {
+      return indexedDB.getArticle(articleId);
+    }).then((article) => {
+      sendResponse({ success: true, article });
+    }).catch((error) => {
+      console.error('[Background] 获取离线文章失败:', error);
+      sendResponse({ success: false, error: error.message });
+    });
+
+    return true;
+  }
 });
 
 export default defineBackground(() => {
-  // console.log('Side Door background service started');
+  browser.runtime.onMessage.addListener(handleMessage);
 });

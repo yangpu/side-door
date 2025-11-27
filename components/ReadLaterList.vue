@@ -8,6 +8,16 @@
 
     <!-- Content -->
     <div class="read-later-content">
+      <!-- Offline/Cache Status Banner -->
+      <div v-if="offlineMessage" class="status-banner" :class="{ 'cache-banner': fromCache && !isOffline, 'offline-banner': isOffline }">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <span>{{ offlineMessage }}</span>
+      </div>
+
       <!-- Loading -->
       <div v-if="loading" class="loading-state">
         <div class="spinner"></div>
@@ -133,8 +143,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { ReadLaterService } from '../services/readLaterService';
+import { ref, onMounted, computed } from 'vue';
+import { offlineService } from '../utils/offlineService';
+import { indexedDB } from '../utils/indexedDB';
 import type { Article } from '../types/article';
 import { toast } from '../utils/toast';
 
@@ -146,21 +157,68 @@ const currentPage = ref(1);
 const pageSize = ref(10);
 const totalPages = ref(0);
 const total = ref(0);
+const isOffline = ref(false);
+const fromCache = ref(false);
 
-// 加载文章列表
+// 离线状态提示
+const offlineMessage = computed(() => {
+  if (fromCache.value && !isOffline.value) {
+    return '⚡ 从缓存加载（瞬时响应）';
+  }
+  if (isOffline.value) {
+    return '📡 离线模式 - 显示缓存数据';
+  }
+  return '';
+});
+
+// 加载文章列表（使用离线优先策略）
 async function loadArticles() {
   loading.value = true;
+  fromCache.value = false;
+  
   try {
-    const result = await ReadLaterService.getArticles({
+    const startTime = performance.now();
+    
+    // 使用离线优先服务加载文章
+    const result = await offlineService.getArticles({
       page: currentPage.value,
       pageSize: pageSize.value,
     });
+    
+    const loadTime = performance.now() - startTime;
+    // console.log(`[PWA] 文章列表加载完成，耗时: ${loadTime.toFixed(2)}ms`);
+    
     articles.value = result.articles;
     total.value = result.total;
     totalPages.value = result.totalPages;
+    
+    // 检查是否从缓存加载
+    fromCache.value = loadTime < 100; // 如果加载时间小于100ms，很可能是缓存
+    isOffline.value = offlineService.shouldUseOfflineData();
+    
+    // 显示加载来源提示
+    if (fromCache.value && !isOffline.value) {
+      // console.log('[PWA] ⚡ 瞬时响应：从缓存加载');
+    }
   } catch (error) {
     console.error('加载文章列表失败:', error);
-    toast.error('加载失败: ' + (error as Error).message);
+    
+    // 如果加载失败，尝试从 IndexedDB 获取所有文章
+    try {
+      const allArticles = await indexedDB.getAllArticles();
+      const start = (currentPage.value - 1) * pageSize.value;
+      const end = start + pageSize.value;
+      articles.value = allArticles.slice(start, end);
+      total.value = allArticles.length;
+      totalPages.value = Math.ceil(allArticles.length / pageSize.value);
+      isOffline.value = true;
+      fromCache.value = true;
+      
+      toast.warning('网络不可用，显示离线数据');
+    } catch (dbError) {
+      console.error('从 IndexedDB 加载失败:', dbError);
+      toast.error('加载失败: ' + (error as Error).message);
+    }
   } finally {
     loading.value = false;
   }
@@ -222,8 +280,17 @@ async function deleteArticle(article: Article) {
   }
 
   try {
+    const { ReadLaterService } = await import('../services/readLaterService');
     const result = await ReadLaterService.deleteArticle(article.id!);
     if (result.success) {
+      // 同时从 IndexedDB 删除
+      try {
+        await indexedDB.deleteArticle(article.id!);
+        // console.log('[PWA] 已从缓存删除文章');
+      } catch (error) {
+        console.warn('[PWA] 从缓存删除失败:', error);
+      }
+      
       toast.success('文章已删除');
       // 从列表中移除
       articles.value = articles.value.filter((a) => a.id !== article.id);
@@ -270,8 +337,34 @@ function formatDate(dateStr: string): string {
 }
 
 // 组件挂载时加载文章
-onMounted(() => {
+onMounted(async () => {
+  // 初始化 IndexedDB
+  await indexedDB.init().catch(err => {
+    console.warn('[PWA] IndexedDB 初始化失败:', err);
+  });
+  
+  // 加载文章
   loadArticles();
+  
+  // 监听在线状态变化
+  const handleOnline = () => {
+    // console.log('[PWA] 网络已连接，重新加载数据');
+    loadArticles();
+  };
+  
+  const handleOffline = () => {
+    // console.log('[PWA] 网络已断开，使用离线数据');
+    isOffline.value = true;
+  };
+  
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+  
+  // 组件卸载时清理事件监听
+  return () => {
+    window.removeEventListener('online', handleOnline);
+    window.removeEventListener('offline', handleOffline);
+  };
 });
 </script>
 
@@ -322,6 +415,46 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+/* Status Banner */
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cache-banner {
+  background: linear-gradient(135deg, #d4f1d4 0%, #b8e6b8 100%);
+  color: #2d5f2d;
+  border: 1px solid #8fdb8f;
+}
+
+.offline-banner {
+  background: linear-gradient(135deg, #ffd93d 0%, #ffb938 100%);
+  color: #664d00;
+  border: 1px solid #ffb938;
+}
+
+.status-banner svg {
+  flex-shrink: 0;
 }
 
 /* Loading State */

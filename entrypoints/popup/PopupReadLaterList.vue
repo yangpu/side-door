@@ -8,7 +8,12 @@
           <polyline points="15 18 9 12 15 6"></polyline>
         </svg>
       </button>
-      <h2>稍后阅读</h2>
+      <h2>
+        稍后阅读
+        <span v-if="cacheStatus" class="cache-indicator" :title="fromCache && !isOffline ? '从缓存加载' : '离线模式'">
+          {{ cacheStatus }}
+        </span>
+      </h2>
       <a href="http://localhost:3001" target="_blank" class="home-link" title="打开稍后阅读主页">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -72,9 +77,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { browser } from 'wxt/browser';
-import { ReadLaterService } from '../../services/readLaterService';
+import { offlineService } from '../../utils/offlineService';
+import { indexedDB } from '../../utils/indexedDB';
 import ArticleCard from '../../components/ArticleCard.vue';
 import type { Article } from '../../types/article';
 
@@ -86,33 +92,82 @@ const currentPage = ref(1);
 const pageSize = ref(9); // 3x3 grid
 const totalPages = ref(0);
 const total = ref(0);
+const fromCache = ref(false);
+const isOffline = ref(false);
 
-// 加载文章列表
+// 缓存状态指示
+const cacheStatus = computed(() => {
+  if (fromCache.value && !isOffline.value) {
+    return '⚡';
+  }
+  if (isOffline.value) {
+    return '📡';
+  }
+  return '';
+});
+
+// 加载文章列表（使用离线优先策略）
 async function loadArticles() {
   loading.value = true;
+  fromCache.value = false;
+  
   try {
-    const result = await ReadLaterService.getArticles({
+    const startTime = performance.now();
+    
+    // 使用离线优先服务加载文章
+    const result = await offlineService.getArticles({
       page: currentPage.value,
       pageSize: pageSize.value,
     });
+    
+    const loadTime = performance.now() - startTime;
+    
     articles.value = result.articles;
     total.value = result.total;
     totalPages.value = result.totalPages;
+    
+    // 检查是否从缓存加载
+    fromCache.value = loadTime < 100;
+    isOffline.value = offlineService.shouldUseOfflineData();
   } catch (error) {
     console.error('加载文章列表失败:', error);
+    
+    // 如果加载失败，尝试从 IndexedDB 获取所有文章
+    try {
+      const allArticles = await indexedDB.getAllArticles();
+      const start = (currentPage.value - 1) * pageSize.value;
+      const end = start + pageSize.value;
+      articles.value = allArticles.slice(start, end);
+      total.value = allArticles.length;
+      totalPages.value = Math.ceil(allArticles.length / pageSize.value);
+      isOffline.value = true;
+      fromCache.value = true;
+    } catch (dbError) {
+      console.error('从 IndexedDB 加载失败:', dbError);
+    }
   } finally {
     loading.value = false;
   }
 }
 
 // 在新标签页中打开文章内容（阅读模式）
-// 使用reader页面打开，保持和阅读器弹窗完全一致的渲染效果
+// 使用article-viewer页面打开，支持PWA离线缓存
 async function openArticleInNewTab(article: Article) {
   try {
-    // 在新标签页中打开reader页面，并通过URL参数传递文章ID
-    const readerBasePath = browser.runtime.getURL('/reader.html');
-    const readerUrl = `${readerBasePath}?articleId=${article.id}`;
-    window.open(readerUrl, '_blank');
+    if (!article.id) {
+      console.error('文章ID不存在');
+      return;
+    }
+    
+    // 预加载文章数据到缓存（提升打开速度）
+    offlineService.getArticle(article.id).catch(err => {
+      console.warn('[PWA Popup] 预加载文章失败:', err);
+    });
+    
+    // 在新标签页中打开article-viewer页面
+    const viewerBasePath = browser.runtime.getURL('/article-viewer.html');
+    const viewerUrl = `${viewerBasePath}?articleId=${article.id}`;
+    window.open(viewerUrl, '_blank');
   } catch (error) {
     console.error('打开文章失败:', error);
     alert('打开文章失败: ' + (error as Error).message);
@@ -168,8 +223,16 @@ async function deleteArticle(article: Article) {
   }
 
   try {
+    const { ReadLaterService } = await import('../../services/readLaterService');
     const result = await ReadLaterService.deleteArticle(article.id!);
     if (result.success) {
+      // 同时从 IndexedDB 删除
+      try {
+        await indexedDB.deleteArticle(article.id!);
+      } catch (error) {
+        console.warn('从缓存删除失败:', error);
+      }
+      
       // 从列表中移除
       articles.value = articles.value.filter((a) => a.id !== article.id);
       total.value--;
@@ -204,8 +267,26 @@ async function nextPage() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 初始化 IndexedDB
+  await indexedDB.init().catch(err => {
+    console.warn('IndexedDB 初始化失败:', err);
+  });
+  
+  // 加载文章
   loadArticles();
+  
+  // 监听在线状态变化
+  const handleOnline = () => {
+    loadArticles();
+  };
+  
+  const handleOffline = () => {
+    isOffline.value = true;
+  };
+  
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
 });
 </script>
 
@@ -251,6 +332,28 @@ onMounted(() => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cache-indicator {
+  display: inline-flex;
+  align-items: center;
+  font-size: 16px;
+  opacity: 0.8;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 0.8;
+    transform: scale(1);
+  }
 }
 
 .home-link {

@@ -104,6 +104,22 @@ export class ReadLaterService {
         await this.saveArticleFile(finalArticleId, pdfBlob, 'pdf');
       }
 
+      // 10. 保存到离线缓存（异步，不阻塞主流程）
+      try {
+        const { OfflineCache } = await import('../utils/offlineCache');
+        const finalArticleForCache = {
+          ...article,
+          id: finalArticleId,
+          content: finalContent,
+          cover_image: finalCoverImage,
+        };
+        OfflineCache.saveArticle(finalArticleForCache).catch((error) => {
+          console.warn('保存到离线缓存失败:', error);
+        });
+      } catch (error) {
+        console.warn('导入离线缓存模块失败:', error);
+      }
+
       return { success: true, articleId: finalArticleId };
     } catch (error) {
       console.error('保存文章时发生错误:', error);

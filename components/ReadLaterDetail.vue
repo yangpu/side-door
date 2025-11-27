@@ -87,7 +87,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { ReadLaterService } from '../services/readLaterService';
+import { offlineService } from '../utils/offlineService';
 import type { Article } from '../types/article';
 
 const props = defineProps<{
@@ -98,23 +98,43 @@ const emit = defineEmits(['close', 'back']);
 
 const loading = ref(false);
 const article = ref<Article | null>(null);
+const isOffline = ref(false);
 
-// 加载文章详情
+// 加载文章详情（使用离线优先策略）
 async function loadArticle() {
   loading.value = true;
   try {
-    const result = await ReadLaterService.getArticleById(props.articleId);
+    // 检查是否离线
+    isOffline.value = offlineService.shouldUseOfflineData();
+    
+    // 使用离线优先服务加载文章
+    const result = await offlineService.getArticle(props.articleId);
+    // console.log('[ReadLaterDetail] 文章数据:', result);
+    // console.log('[ReadLaterDetail] content 字段:', result?.content ? `存在 (${result.content.length} 字符)` : '不存在');
+    
     if (result) {
       article.value = result;
     }
   } catch (error) {
     console.error('加载文章详情失败:', error);
+    
+    // 如果网络加载失败，尝试从 IndexedDB 获取
+    try {
+      const { indexedDB } = await import('../utils/indexedDB');
+      const cachedArticle = await indexedDB.getArticle(props.articleId);
+      if (cachedArticle) {
+        article.value = cachedArticle;
+        isOffline.value = true;
+      }
+    } catch (dbError) {
+      console.error('从缓存加载失败:', dbError);
+    }
   } finally {
     loading.value = false;
   }
 }
 
-// 显示内容(优先使用替换后的图片URL)
+// 显示内容
 const displayContent = computed(() => {
   return article.value?.content || '';
 });

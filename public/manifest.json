@@ -1,0 +1,56 @@
+{
+  "name": "SideDoor - 稍后阅读",
+  "short_name": "SideDoor",
+  "description": "一个用于阅读和总结网页内容的 PWA 应用",
+  "start_url": "/read-later-home.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ff7b72",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon/16.png",
+      "sizes": "16x16",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon/32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon/48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon/128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "稍后阅读列表",
+      "short_name": "阅读列表",
+      "description": "查看稍后阅读的文章列表",
+      "url": "/read-later-home.html",
+      "icons": [
+        {
+          "src": "/icon/128.png",
+          "sizes": "128x128"
+        }
+      ]
+    }
+  ],
+  "screenshots": [],
+  "categories": ["productivity", "education"],
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false
+}
