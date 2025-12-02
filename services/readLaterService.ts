@@ -678,6 +678,50 @@ export class ReadLaterService {
   }
 
   /**
+   * 通过 URL 获取文章详情
+   */
+  static async getArticleByUrl(url: string): Promise<Article | null> {
+    try {
+      // 使用 maybeSingle() 代替 single()，这样在没有找到记录时不会报错
+      const { data: article, error: articleError } = await supabase
+        .from('articles')
+        .select('*')
+        .eq('url', url)
+        .maybeSingle();
+
+      if (articleError) {
+        // 只在真正的错误时打印
+        console.error('通过URL获取文章失败:', articleError);
+        return null;
+      }
+
+      return article;
+    } catch (error) {
+      console.error('通过URL获取文章详情时发生错误:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 通过 URL 删除文章
+   */
+  static async deleteArticleByUrl(url: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // 1. 先获取文章 ID
+      const article = await this.getArticleByUrl(url);
+      if (!article || !article.id) {
+        return { success: false, error: '文章不存在' };
+      }
+
+      // 2. 调用已有的删除方法
+      return await this.deleteArticle(article.id);
+    } catch (error) {
+      console.error('通过URL删除文章时发生错误:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  /**
    * 删除文章
    */
   static async deleteArticle(id: string): Promise<{ success: boolean; error?: string }> {

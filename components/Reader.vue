@@ -1358,7 +1358,12 @@ function applyCodeHighlighting(container: Element) {
     }
 
     try {
-      // 应用代码高亮
+      // 如果代码块已经被高亮过，先清除高亮内容，只保留纯文本
+      if (code.dataset.highlighted === 'yes') {
+        const plainText = code.textContent || '';
+        code.textContent = plainText;
+      }
+      // 清除高亮标记
       delete code.dataset.highlighted;
       hljs.highlightElement(code);
 
@@ -1850,12 +1855,13 @@ function processFile(doc: Document): Boolean {
   return true;
 }
 
-// 修改 watch 监听 refreshKey，只在显式刷新时更新内容
+// 修改 watch 监听 refreshKey，只在显式刷新时重新解析页面（忽略已保存的文章）
 watch(
   () => props.refreshKey,
   (newKey, oldKey) => {
     // 只有当 refreshKey 真正变化时才刷新（排除初始化时的 undefined）
     if (newKey !== undefined && newKey !== oldKey && props.html) {
+      // 刷新时强制重新解析页面，不使用已保存的文章
       processArticle();
     }
   }
@@ -1894,6 +1900,10 @@ const isSavingToReadLater = ref(false);
 // 稍后阅读列表相关状态
 const showReadLaterList = ref(false);
 const selectedArticleId = ref<string | null>(null);
+
+// 当前URL是否已加入稍后阅读
+const isInReadLater = ref(false);
+const savedArticleData = ref<Article | null>(null);
 
 // 添加一个辅助函数来检查是否为 base64 图片
 function isBase64Image(src: string): boolean {
@@ -2654,6 +2664,10 @@ async function saveToReadLater() {
 
     if (result.success) {
       toast.success('已保存到稍后阅读！');
+      // 更新状态
+      isInReadLater.value = true;
+      // 通知父窗口更新图标状态
+      window.parent.postMessage({ type: 'readLaterStatusChange', isInReadLater: true }, '*');
     } else {
       toast.error('保存失败: ' + (result.error || '未知错误'));
     }
@@ -2662,6 +2676,107 @@ async function saveToReadLater() {
     toast.error('保存失败: ' + (error as Error).message);
   } finally {
     isSavingToReadLater.value = false;
+  }
+}
+
+// 检查当前URL是否在稍后阅读列表中
+async function checkIfInReadLater() {
+  try {
+    const article = await ReadLaterService.getArticleByUrl(props.url);
+    if (article) {
+      isInReadLater.value = true;
+      savedArticleData.value = article;
+      // 通知父窗口更新图标状态
+      window.parent.postMessage({ type: 'readLaterStatusChange', isInReadLater: true }, '*');
+      // 加载已保存的文章内容
+      loadSavedArticle(article);
+    } else {
+      isInReadLater.value = false;
+      savedArticleData.value = null;
+      // 通知父窗口更新图标状态
+      window.parent.postMessage({ type: 'readLaterStatusChange', isInReadLater: false }, '*');
+      // 正常解析页面
+      if (props.html) {
+        processArticle();
+      }
+    }
+  } catch (error) {
+    console.error('检查稍后阅读状态失败:', error);
+    // 出错时正常解析页面
+    if (props.html) {
+      processArticle();
+    }
+  }
+}
+
+// 加载已保存的文章内容
+function loadSavedArticle(article: Article) {
+  try {
+    isLoading.value = true;
+    
+    // 设置文章信息
+    title.value = article.title || '--';
+    excerpt.value = article.summary || '--';
+    publishedTime.value = article.published_date || '--';
+    length.value = article.length?.toString() || '--';
+    byline.value = article.author || '--';
+    lang.value = article.language || '--';
+    siteName.value = getSiteNameFromUrl(article.url || props.url) || '--';
+    summary.value = article.ai_summary || '';
+    
+    // 设置摘要生成状态
+    isSummaryGenerated.value = !!article.ai_summary;
+    
+    // 创建内容元素
+    const contentElement = document.createElement('div');
+    contentElement.innerHTML = article.content || '';
+    content.value = contentElement;
+    
+    // 渲染内容
+    renderContentElement(contentElement);
+    
+  } catch (error) {
+    console.error('加载已保存文章失败:', error);
+    // 出错时正常解析页面
+    if (props.html) {
+      processArticle();
+    }
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// 从稍后阅读中删除
+async function removeFromReadLater() {
+  if (isSavingToReadLater.value) return;
+  
+  try {
+    isSavingToReadLater.value = true;
+    const result = await ReadLaterService.deleteArticleByUrl(props.url);
+    
+    if (result.success) {
+      toast.success('已从稍后阅读中移除！');
+      isInReadLater.value = false;
+      savedArticleData.value = null;
+      // 通知父窗口更新图标状态
+      window.parent.postMessage({ type: 'readLaterStatusChange', isInReadLater: false }, '*');
+    } else {
+      toast.error('移除失败: ' + (result.error || '未知错误'));
+    }
+  } catch (error) {
+    console.error('从稍后阅读移除失败:', error);
+    toast.error('移除失败: ' + (error as Error).message);
+  } finally {
+    isSavingToReadLater.value = false;
+  }
+}
+
+// 切换稍后阅读状态
+async function toggleReadLaterStatus() {
+  if (isInReadLater.value) {
+    await removeFromReadLater();
+  } else {
+    await saveToReadLater();
   }
 }
 
@@ -3008,9 +3123,8 @@ onMounted(async () => {
   // 获取模型列表
   fetchOllamaModels();
 
-  if (props.html) {
-    processArticle();
-  }
+  // 检查当前URL是否已在稍后阅读列表中
+  await checkIfInReadLater();
 
   // 初始化翻译状态
   if (!enableTranslation.value) {
@@ -3967,6 +4081,19 @@ function openSettingsPopover(event: MouseEvent) {
           </div>
         </div>
         <div class="settings-section">
+          <h4>稍后阅读</h4>
+          <div class="settings-buttons">
+            <button class="settings-btn toggle-read-later-btn ${isInReadLater.value ? 'in-read-later' : ''}">
+              <span class="heart-icon">${isInReadLater.value ? '❤️' : '🤍'}</span>
+              <span class="settings-btn-text">${isInReadLater.value ? '移除收藏' : '加入收藏'}</span>
+              <span class="loading-dots" style="display: none;"></span>
+            </button>
+            <button class="settings-btn read-later-list-btn">
+              <span class="settings-btn-text">阅读列表</span>
+            </button>
+          </div>
+        </div>
+        <div class="settings-section">
           <h4>导出</h4>
           <div class="settings-buttons">
             <button class="settings-btn export-html-btn">
@@ -3976,13 +4103,6 @@ function openSettingsPopover(event: MouseEvent) {
             <button class="settings-btn export-pdf-btn">
               <span class="settings-btn-text">导出 PDF</span>
               <span class="loading-dots" style="display: none;"></span>
-            </button>
-            <button class="settings-btn save-read-later-btn">
-              <span class="settings-btn-text">稍后阅读</span>
-              <span class="loading-dots" style="display: none;"></span>
-            </button>
-            <button class="settings-btn read-later-list-btn">
-              <span class="settings-btn-text">阅读列表</span>
             </button>
           </div>
         </div>
@@ -4111,9 +4231,10 @@ function openSettingsPopover(event: MouseEvent) {
     exportHtmlBtn.addEventListener('click', exportToHTML);
   }
 
-  const saveReadLaterBtn = popover.querySelector('.save-read-later-btn');
-  if (saveReadLaterBtn) {
-    saveReadLaterBtn.addEventListener('click', saveToReadLater);
+  // 添加稍后阅读切换按钮事件
+  const toggleReadLaterBtn = popover.querySelector('.toggle-read-later-btn');
+  if (toggleReadLaterBtn) {
+    toggleReadLaterBtn.addEventListener('click', toggleReadLaterStatus);
   }
 
   const readLaterListBtn = popover.querySelector('.read-later-list-btn');
@@ -4128,7 +4249,7 @@ function openSettingsPopover(event: MouseEvent) {
   function updateExportButtons() {
     const pdfBtn = popover.querySelector('.export-pdf-btn') as HTMLButtonElement;
     const htmlBtn = popover.querySelector('.export-html-btn') as HTMLButtonElement;
-    const readLaterBtn = popover.querySelector('.save-read-later-btn') as HTMLButtonElement;
+    const toggleReadLaterBtnEl = popover.querySelector('.toggle-read-later-btn') as HTMLButtonElement;
 
     if (pdfBtn) {
       pdfBtn.disabled = isExportingPDF.value || isExportingHTML.value;
@@ -4150,19 +4271,37 @@ function openSettingsPopover(event: MouseEvent) {
       }
     }
 
-    if (readLaterBtn) {
-      readLaterBtn.disabled = isSavingToReadLater.value;
-      const readLaterBtnText = readLaterBtn.querySelector('.settings-btn-text') as HTMLElement;
-      const readLaterLoadingDots = readLaterBtn.querySelector('.loading-dots') as HTMLElement;
-      if (readLaterBtnText && readLaterLoadingDots) {
-        readLaterBtnText.textContent = isSavingToReadLater.value ? '保存中' : '稍后阅读';
-        readLaterLoadingDots.style.display = isSavingToReadLater.value ? 'inline-block' : 'none';
+    if (toggleReadLaterBtnEl) {
+      toggleReadLaterBtnEl.disabled = isSavingToReadLater.value;
+      const heartIcon = toggleReadLaterBtnEl.querySelector('.heart-icon') as HTMLElement;
+      const btnText = toggleReadLaterBtnEl.querySelector('.settings-btn-text') as HTMLElement;
+      const loadingDots = toggleReadLaterBtnEl.querySelector('.loading-dots') as HTMLElement;
+      
+      if (heartIcon) {
+        heartIcon.textContent = isInReadLater.value ? '❤️' : '🤍';
+      }
+      if (btnText) {
+        if (isSavingToReadLater.value) {
+          btnText.textContent = isInReadLater.value ? '移除中' : '保存中';
+        } else {
+          btnText.textContent = isInReadLater.value ? '移除收藏' : '加入收藏';
+        }
+      }
+      if (loadingDots) {
+        loadingDots.style.display = isSavingToReadLater.value ? 'inline-block' : 'none';
+      }
+      
+      // 更新按钮样式
+      if (isInReadLater.value) {
+        toggleReadLaterBtnEl.classList.add('in-read-later');
+      } else {
+        toggleReadLaterBtnEl.classList.remove('in-read-later');
       }
     }
   }
 
-  // 监听导出状态变化
-  watch([isExportingPDF, isExportingHTML, isSavingToReadLater], () => {
+  // 监听导出状态变化和稍后阅读状态变化
+  watch([isExportingPDF, isExportingHTML, isSavingToReadLater, isInReadLater], () => {
     updateExportButtons();
   });
 
@@ -4820,8 +4959,14 @@ watch(currentTheme, (newTheme) => {
     </div>
 
     <div class="reader-container" tabindex="0">
-      <button class="settings-button" @click="openSettingsPopover" title="设置">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+      <button class="settings-button" :class="{ 'in-read-later': isInReadLater }" @click="openSettingsPopover" :title="isInReadLater ? '已收藏 - 点击打开设置' : '设置'">
+        <!-- 已收藏时显示红心图标 -->
+        <svg v-if="isInReadLater" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#ff6b6b"
+          stroke="#ff6b6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+        </svg>
+        <!-- 未收藏时显示齿轮图标 -->
+        <svg v-else xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"></circle>
           <path

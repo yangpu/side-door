@@ -48,7 +48,13 @@ class IndexedDBService {
     if (this.db) return;
 
     return new Promise((resolve, reject) => {
-      const request = window.indexedDB.open(this.dbName, this.version);
+      // 使用 globalThis.indexedDB 以兼容 Service Worker 和普通页面环境
+      const idb = globalThis.indexedDB || (typeof self !== 'undefined' ? self.indexedDB : undefined);
+      if (!idb) {
+        reject(new Error('IndexedDB 不可用'));
+        return;
+      }
+      const request = idb.open(this.dbName, this.version);
 
       request.onerror = () => {
         console.error('IndexedDB 打开失败:', request.error);

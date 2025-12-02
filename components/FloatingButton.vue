@@ -1,9 +1,10 @@
 <template>
   <div class="floating-button-wrapper" v-show="showPopup">
     <!-- 浮动圆形图标 -->
-    <div class="floating-button" @click="togglePopup" @dblclick="enterImmersive" :class="{ active: isPopupVisible }"
-      title="旁门 - 帮你简读文章 (双击进入沉浸式阅读)">
+    <div class="floating-button" @click="togglePopup" @dblclick="enterImmersive" :class="{ active: isPopupVisible, 'in-read-later': isInReadLater }"
+      :title="isInReadLater ? '旁门 - 已收藏 (双击进入沉浸式阅读)' : '旁门 - 帮你简读文章 (双击进入沉浸式阅读)'">
       <img src="../assets/icon.png" alt="Side Door" />
+      <span v-if="isInReadLater" class="heart-badge">❤️</span>
     </div>
 
     <!-- 弹窗 -->
@@ -60,6 +61,9 @@ const isImmersive = ref(false);
 const isPopupCreated = ref(false);
 const showPopup = ref(false);
 const isFullscreen = ref(false);
+
+// 当前URL是否已加入稍后阅读
+const isInReadLater = ref(false);
 
 const reader = ref<HTMLIFrameElement | null>(null);
 
@@ -202,6 +206,9 @@ const handleMessage = (event: MessageEvent) => {
     localStorage.setItem('READER_THEME', event.data.theme);
     // 同步所有相关元素的主题
     syncTheme();
+  } else if (type === 'readLaterStatusChange') {
+    // 更新稍后阅读状态
+    isInReadLater.value = event.data.isInReadLater;
   }
 };
 
@@ -480,6 +487,25 @@ const refreshIframe = () => {
 
 .floating-button.active img {
   opacity: 1;
+}
+
+/* 心形徽章样式 - 表示已加入稍后阅读 */
+.heart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 14px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.floating-button.in-read-later {
+  border-color: #ff6b6b !important;
+  box-shadow: 0 2px 12px rgba(255, 107, 107, 0.4) !important;
+}
+
+.floating-button.in-read-later:hover {
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.5) !important;
 }
 
 .popup-wrapper {

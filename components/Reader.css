@@ -1761,6 +1761,24 @@ html[data-theme='dark'] .paragraph-popover .popover-arrow::before {
   min-height: 36px;
 }
 
+.settings-btn.toggle-read-later-btn {
+  gap: 6px;
+}
+
+.settings-btn.toggle-read-later-btn .heart-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.settings-btn.toggle-read-later-btn.in-read-later {
+  border-color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.settings-btn.toggle-read-later-btn.in-read-later:hover {
+  background: rgba(255, 107, 107, 0.2);
+}
+
 .settings-btn .settings-btn-text {
   margin-right: 4px;
 }
@@ -1803,6 +1821,16 @@ html[data-theme='dark'] .paragraph-popover .popover-arrow::before {
   width: 20px;
   height: 20px;
   color: var(--text-color);
+}
+
+/* 已收藏状态的设置按钮 */
+.settings-button.in-read-later {
+  border-color: #ff6b6b;
+  box-shadow: 0 2px 12px rgba(255, 107, 107, 0.3);
+}
+
+.settings-button.in-read-later:hover {
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
 }
 
 /* 稍后阅读弹窗 */
