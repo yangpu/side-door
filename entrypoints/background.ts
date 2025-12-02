@@ -122,5 +122,5 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 export default defineBackground(() => {
-  browser.runtime.onMessage.addListener(handleMessage);
+  console.log('[Background] Side Door background service started');
 });

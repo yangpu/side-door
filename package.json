@@ -8,6 +8,7 @@
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
     "dev:with-server": "node dev-server-unified.js",
+    "serve": "node web-server.js",
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",

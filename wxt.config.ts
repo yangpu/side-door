@@ -40,6 +40,6 @@ export default defineConfig({
     },
   },
   webExt: {
-    startUrls: ['http://localhost:8080'],
+    startUrls: ['http://localhost:8080/test'],
   },
 });

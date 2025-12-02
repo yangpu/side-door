@@ -3,8 +3,7 @@
  * 
  * 同时启动：
  * 1. WXT 扩展开发服务器（端口 5173）
- * 2. test-page 测试页面服务器（端口 8080）
- * 3. read-later 稍后阅读主页服务器（端口 3001）
+ * 2. Web 服务器（端口 8080）- 包含测试页面、稍后阅读主页、文章详情页
  */
 
 import { spawn } from 'child_process';
@@ -19,220 +18,191 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // 端口配置
-const TEST_PAGE_PORT = 8080;
-const READ_LATER_PORT = 3001;
+const WEB_PORT = 8080;
 
 // MIME 类型映射
 const MIME_TYPES = {
-  '.html': 'text/html',
-  '.css': 'text/css',
-  '.js': 'application/javascript',
-  '.json': 'application/json',
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
 };
 
-// 启动 test-page 服务器
-function startTestPageServer() {
-  const server = createServer(async (req, res) => {
-    let filePath = req.url === '/' ? '/test-page.html' : req.url;
-    filePath = join(__dirname, filePath);
+// 路由配置
+const ROUTES = {
+  '/': 'public/read-later-standalone.html',
+  '/index.html': 'public/read-later-standalone.html',
+  '/test': 'test-page.html',
+  '/test.html': 'test-page.html',
+  '/article': 'public/article-detail.html',
+  '/article.html': 'public/article-detail.html',
+};
 
-    const ext = extname(filePath);
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-
-    try {
-      const content = await readFile(filePath);
-      res.writeHead(200, { 
-        'Content-Type': contentType,
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(content);
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        res.writeHead(404, { 'Content-Type': 'text/plain' });
-        res.end('404 Not Found');
-      } else {
-        res.writeHead(500, { 'Content-Type': 'text/plain' });
-        res.end('500 Internal Server Error');
-      }
-    }
-  });
-
-  server.listen(TEST_PAGE_PORT, () => {
-    console.log(`📝 Test page server: http://localhost:${TEST_PAGE_PORT}`);
-  });
-
-  return server;
+// 获取 MIME 类型
+function getMimeType(filePath) {
+  const ext = extname(filePath).toLowerCase();
+  return MIME_TYPES[ext] || 'application/octet-stream';
 }
 
-// 启动 read-later 服务器
-function startReadLaterServer() {
-  const HTML_FILE = join(__dirname, 'public', 'read-later-standalone.html');
-  const FAVICON_FILE = join(__dirname, 'public', 'icon', '128.png');
-
-  if (!existsSync(HTML_FILE)) {
-    console.error('❌ 错误: 找不到文件', HTML_FILE);
-    return null;
+// 发送文件响应
+async function sendFile(res, filePath, cacheControl = 'no-cache') {
+  try {
+    const content = await readFile(filePath);
+    const mimeType = getMimeType(filePath);
+    
+    res.writeHead(200, {
+      'Content-Type': mimeType,
+      'Cache-Control': cacheControl,
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.end(content);
+    return true;
+  } catch (error) {
+    return false;
   }
+}
 
+// 发送 404 响应
+function send404(res) {
+  res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>404 - 页面未找到</title>
+      <style>
+        body { font-family: system-ui; text-align: center; padding: 50px; background: #f5f5f5; }
+        h1 { color: #ff7b72; }
+        a { color: #667eea; }
+      </style>
+    </head>
+    <body>
+      <h1>404</h1>
+      <p>页面未找到</p>
+      <p><a href="/">返回首页</a> | <a href="/test">测试页面</a></p>
+    </body>
+    </html>
+  `);
+}
+
+// 启动 Web 服务器
+function startWebServer() {
   const server = createServer(async (req, res) => {
+    // 解析 URL
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    let pathname = url.pathname;
+    
+    // 设置 CORS 头
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
+    
+    // 处理 OPTIONS 请求
     if (req.method === 'OPTIONS') {
       res.writeHead(200);
       res.end();
       return;
     }
-
+    
+    // 只处理 GET 请求
     if (req.method !== 'GET') {
-      res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.writeHead(405, { 'Content-Type': 'text/plain' });
       res.end('Method Not Allowed');
       return;
     }
-
-    // 处理 favicon
-    if (req.url === '/favicon.ico') {
-      if (existsSync(FAVICON_FILE)) {
-        readFile(FAVICON_FILE).then(data => {
-          res.writeHead(200, { 'Content-Type': 'image/png' });
-          res.end(data);
-        }).catch(() => {
-          res.writeHead(404);
-          res.end();
-        });
-      } else {
-        res.writeHead(404);
-        res.end();
+    
+    // 1. 检查路由映射
+    if (ROUTES[pathname]) {
+      const filePath = join(__dirname, ROUTES[pathname]);
+      if (await sendFile(res, filePath)) return;
+    }
+    
+    // 2. 处理带查询参数的路由 (如 /article?articleId=xxx)
+    const basePathname = pathname.split('?')[0];
+    if (ROUTES[basePathname]) {
+      const filePath = join(__dirname, ROUTES[basePathname]);
+      if (await sendFile(res, filePath)) return;
+    }
+    
+    // 3. 处理 Service Worker
+    if (pathname === '/sw.js') {
+      const filePath = join(__dirname, 'public/sw.js');
+      if (await sendFile(res, filePath, 'no-cache')) return;
+    }
+    
+    // 4. 处理 manifest.json
+    if (pathname === '/manifest.json') {
+      const filePath = join(__dirname, 'public/manifest.json');
+      if (await sendFile(res, filePath, 'no-cache')) return;
+    }
+    
+    // 5. 处理 favicon.ico - 使用扩展应用的图标
+    if (pathname === '/favicon.ico') {
+      const filePath = join(__dirname, 'public/icon/32.png');
+      if (await sendFile(res, filePath, 'max-age=86400')) return;
+    }
+    
+    // 6. 处理图标请求
+    if (pathname.startsWith('/icon/')) {
+      const filePath = join(__dirname, 'public', pathname);
+      if (existsSync(filePath)) {
+        if (await sendFile(res, filePath, 'max-age=86400')) return;
       }
-      return;
     }
-
-    // 处理 icon 图片请求
-    if (req.url.startsWith('/icon/')) {
-      const iconPath = join(__dirname, 'public', req.url);
-      if (existsSync(iconPath)) {
-        readFile(iconPath).then(data => {
-          res.writeHead(200, { 'Content-Type': 'image/png' });
-          res.end(data);
-        }).catch(() => {
-          res.writeHead(404);
-          res.end();
-        });
-      } else {
-        res.writeHead(404);
-        res.end();
+    
+    // 7. 处理 public 目录下的静态文件
+    const publicPath = join(__dirname, 'public', pathname);
+    if (existsSync(publicPath)) {
+      if (await sendFile(res, publicPath, 'max-age=3600')) return;
+    }
+    
+    // 8. 处理 components 目录下的文件 (如 Reader.css)
+    if (pathname.startsWith('/components/')) {
+      const filePath = join(__dirname, pathname.substring(1));
+      if (existsSync(filePath)) {
+        if (await sendFile(res, filePath, 'max-age=3600')) return;
       }
-      return;
     }
-
-    // 处理文章查看页面 - 代理到 WXT 开发服务器
-    if (req.url.startsWith('/article-viewer.html')) {
-      const { default: fetch } = await import('node-fetch');
-      const wxtUrl = `http://localhost:5173${req.url}`;
-      
-      try {
-        const response = await fetch(wxtUrl);
-        const html = await response.text();
-        
-        res.writeHead(200, {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-cache',
-        });
-        res.end(html);
-      } catch (err) {
-        console.error('❌ 代理到 WXT 失败:', err);
-        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Failed to load article viewer');
-      }
-      return;
+    
+    // 9. 处理根目录下的静态文件
+    const rootPath = join(__dirname, pathname.substring(1));
+    if (existsSync(rootPath) && !pathname.includes('..')) {
+      if (await sendFile(res, rootPath, 'max-age=3600')) return;
     }
-
-    // 处理根路径和 index.html
-    if (req.url === '/' || req.url === '/index.html') {
-      readFile(HTML_FILE, 'utf-8').then(data => {
-        res.writeHead(200, {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'no-cache',
-        });
-        res.end(data);
-      }).catch(err => {
-        console.error('❌ 读取文件失败:', err);
-        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Internal Server Error');
-      });
-      return;
-    }
-
-    // 处理健康检查
-    if (req.url === '/health') {
+    
+    // 10. 健康检查
+    if (pathname === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'ok',
-        service: 'read-later-home',
+        service: 'sidedoor-web',
         timestamp: new Date().toISOString(),
+        routes: Object.keys(ROUTES),
       }));
       return;
     }
-
-    // 处理 public 目录下的静态文件（如 article-detail.html）
-    // 去除 URL 中的查询参数
-    const urlPath = req.url.split('?')[0];
-    const publicFilePath = join(__dirname, 'public', urlPath);
     
-    if (existsSync(publicFilePath)) {
-      const ext = extname(publicFilePath);
-      const contentType = MIME_TYPES[ext] || 'text/html';
-      
-      readFile(publicFilePath).then(data => {
-        res.writeHead(200, {
-          'Content-Type': contentType,
-          'Cache-Control': 'no-cache',
-        });
-        res.end(data);
-      }).catch(err => {
-        console.error('❌ 读取文件失败:', err);
-        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Internal Server Error');
-      });
-      return;
-    }
-
-    // 处理 components 目录下的静态文件（如 Reader.css）
-    const componentsFilePath = join(__dirname, urlPath.substring(1)); // 去除开头的 /
-    
-    if (existsSync(componentsFilePath)) {
-      const ext = extname(componentsFilePath);
-      const contentType = MIME_TYPES[ext] || 'text/css';
-      
-      readFile(componentsFilePath).then(data => {
-        res.writeHead(200, {
-          'Content-Type': contentType,
-          'Cache-Control': 'no-cache',
-        });
-        res.end(data);
-      }).catch(err => {
-        console.error('❌ 读取文件失败:', err);
-        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-        res.end('Internal Server Error');
-      });
-      return;
-    }
-
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Not Found');
+    // 404
+    send404(res);
   });
 
-  server.listen(READ_LATER_PORT, () => {
-    console.log(`📖 Read later home: http://localhost:${READ_LATER_PORT}`);
+  server.listen(WEB_PORT, () => {
+    console.log(`🌐 Web server: http://localhost:${WEB_PORT}`);
+    console.log(`   /           -> 稍后阅读主页`);
+    console.log(`   /test       -> 测试页面`);
+    console.log(`   /article    -> 文章详情页`);
   });
 
   return server;
@@ -274,9 +244,8 @@ async function main() {
   console.log('='.repeat(70));
   console.log('');
 
-  // 启动三个服务
-  const testPageServer = startTestPageServer();
-  const readLaterServer = startReadLaterServer();
+  // 启动服务
+  const webServer = startWebServer();
   const wxtProcess = startWxtServer();
 
   console.log('🔧 Extension dev: http://localhost:5173 (WXT)');
@@ -286,8 +255,7 @@ async function main() {
   if (localIPs.length > 0) {
     console.log('🌐 局域网访问:');
     localIPs.forEach(ip => {
-      console.log(`   Test page: http://${ip}:${TEST_PAGE_PORT}`);
-      console.log(`   Read later: http://${ip}:${READ_LATER_PORT}`);
+      console.log(`   http://${ip}:${WEB_PORT}`);
     });
     console.log('');
   }
@@ -304,15 +272,9 @@ async function main() {
   const cleanup = () => {
     console.log('\n\n🛑 正在关闭所有服务...');
     
-    testPageServer.close(() => {
-      console.log('✅ Test page server 已停止');
+    webServer.close(() => {
+      console.log('✅ Web server 已停止');
     });
-    
-    if (readLaterServer) {
-      readLaterServer.close(() => {
-        console.log('✅ Read later server 已停止');
-      });
-    }
     
     wxtProcess.kill();
     console.log('✅ WXT 已停止');

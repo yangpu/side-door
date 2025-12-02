@@ -455,20 +455,37 @@ function summarizeArticle(content) {
       // 注册 Service Worker
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').then(registration => {
-          console.log('Service Worker 注册成功:', registration.scope);
+          //console.log('[PWA] Service Worker 注册成功:', registration.scope);
+          
+          // 检查更新
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                //console.log('[PWA] 新版本可用，刷新页面以更新');
+              }
+            });
+          });
         }).catch(error => {
-          console.error('Service Worker 注册失败:', error);
+          console.error('[PWA] Service Worker 注册失败:', error);
         });
       }
       
       // 监听在线/离线状态
       window.addEventListener('online', () => {
-        console.log('网络已连接');
+        //console.log('[PWA] 网络已连接');
+        document.body.classList.remove('offline');
       });
       
       window.addEventListener('offline', () => {
-        console.log('网络已断开，使用离线模式');
+        //console.log('[PWA] 网络已断开，使用离线模式');
+        document.body.classList.add('offline');
       });
+      
+      // 初始化时检查网络状态
+      if (!navigator.onLine) {
+        document.body.classList.add('offline');
+      }
     </script>
   </body>
 </html>

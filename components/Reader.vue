@@ -1944,7 +1944,7 @@ async function processImage(src: string, img: HTMLImageElement): Promise<string 
         let imageUrl = src;
         if (useProxy) {
           // 使用代理服务下载图片
-          const proxyUrl = `http://localhost:3001/proxy?url=${encodeURIComponent(
+          const proxyUrl = `http://localhost:8080/proxy?url=${encodeURIComponent(
             src
           )}`;
           const response = await fetch(proxyUrl);

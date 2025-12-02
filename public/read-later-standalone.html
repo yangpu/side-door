@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ff7b72">
+  <meta name="description" content="SideDoor - 稍后阅读，支持离线访问的 PWA 应用">
   <title>SideDoor - 稍后阅读</title>
-  <link rel="icon" type="image/png" href="icon/128.png">
+  <link rel="icon" type="image/png" href="/icon/128.png">
+  <link rel="apple-touch-icon" href="/icon/128.png">
+  <link rel="manifest" href="/manifest.json">
   <style>
     :root {
       --sd-bg-primary: white;
@@ -609,7 +613,7 @@
 
     // 打开文章 - 在新标签页打开阅读器页面
     window.openArticle = function(id) {
-      const readerUrl = `/article-detail.html?articleId=${id}`;
+      const readerUrl = `/article?articleId=${id}`;
       window.open(readerUrl, '_blank');
     };
     
@@ -667,6 +671,51 @@
       
       alert(message);
     };
+
+    // PWA Service Worker 注册
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').then(registration => {
+        //console.log('[PWA] Service Worker 注册成功:', registration.scope);
+        
+        // 检查更新
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // 新版本可用，提示用户刷新
+              if (confirm('发现新版本，是否刷新页面？')) {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                window.location.reload();
+              }
+            }
+          });
+        });
+      }).catch(error => {
+        console.error('[PWA] Service Worker 注册失败:', error);
+      });
+      
+      // 监听 SW 控制权变化
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+    }
+
+    // 监听在线/离线状态
+    window.addEventListener('online', () => {
+      //console.log('[PWA] 网络已连接');
+      document.body.classList.remove('offline');
+      loadArticles(); // 重新加载数据
+    });
+    
+    window.addEventListener('offline', () => {
+      //console.log('[PWA] 网络已断开，使用离线模式');
+      document.body.classList.add('offline');
+    });
+    
+    // 初始化时检查网络状态
+    if (!navigator.onLine) {
+      document.body.classList.add('offline');
+    }
 
     // 初始加载
     loadArticles();

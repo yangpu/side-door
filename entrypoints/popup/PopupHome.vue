@@ -5,7 +5,7 @@
       <div class="header-title">
         <img src="/icon/128.png" alt="SideDoor" class="logo" />
         <h1>旁门</h1>
-        <a href="http://localhost:3001" target="_blank" class="home-link" title="打开稍后阅读主页">
+        <a href="http://localhost:8080" target="_blank" class="home-link" title="打开稍后阅读主页">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
