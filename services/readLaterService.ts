@@ -22,7 +22,7 @@ export class ReadLaterService {
         .from('articles')
         .select('id')
         .eq('url', article.url)
-        .single();
+        .maybeSingle();
 
       const isUpdate = !!existingArticle;
       const articleId = existingArticle?.id;
@@ -590,6 +590,74 @@ export class ReadLaterService {
       return match ? match[1] : null;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * 搜索文章（不包含 content 字段）
+   * 搜索范围：title, url, author, summary, ai_summary
+   */
+  static async searchArticles(
+    keyword: string,
+    params: PaginationParams
+  ): Promise<PaginatedArticles> {
+    const { page = 1, pageSize = 10 } = params;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    try {
+      // 构建搜索条件 - 使用 ilike 进行模糊匹配
+      const searchPattern = `%${keyword}%`;
+      
+      // 获取总数
+      const { count } = await supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .or(`title.ilike.${searchPattern},url.ilike.${searchPattern},author.ilike.${searchPattern},summary.ilike.${searchPattern},ai_summary.ilike.${searchPattern}`);
+
+      // 获取分页数据
+      const { data: articles, error } = await supabase
+        .from('articles')
+        .select(`
+          id,
+          title,
+          url,
+          author,
+          published_date,
+          length,
+          language,
+          summary,
+          ai_summary,
+          cover_image,
+          html_file_url,
+          pdf_file_url,
+          created_at,
+          updated_at
+        `)
+        .or(`title.ilike.${searchPattern},url.ilike.${searchPattern},author.ilike.${searchPattern},summary.ilike.${searchPattern},ai_summary.ilike.${searchPattern}`)
+        .order('updated_at', { ascending: false })
+        .range(from, to);
+
+      if (error) {
+        throw error;
+      }
+
+      return {
+        articles: articles || [],
+        total: count || 0,
+        page,
+        pageSize,
+        totalPages: Math.ceil((count || 0) / pageSize),
+      };
+    } catch (error) {
+      console.error('搜索文章失败:', error);
+      return {
+        articles: [],
+        total: 0,
+        page,
+        pageSize,
+        totalPages: 0,
+      };
     }
   }
 

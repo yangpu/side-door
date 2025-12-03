@@ -327,6 +327,73 @@
       .main { padding: 24px 20px; }
       .grid { grid-template-columns: 1fr; }
     }
+
+    /* Search Box */
+    .search-box {
+      margin-bottom: 24px;
+    }
+
+    .search-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border: 1px solid var(--sd-border);
+      border-radius: 10px;
+      background: var(--sd-bg-primary);
+      transition: all 0.2s;
+    }
+
+    .search-input-wrapper:focus-within {
+      border-color: var(--sd-accent);
+      box-shadow: 0 0 0 3px rgba(255, 123, 114, 0.1);
+    }
+
+    .search-icon {
+      color: var(--sd-text-secondary);
+      flex-shrink: 0;
+    }
+
+    .search-input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 15px;
+      background: transparent;
+      color: var(--sd-text-primary);
+    }
+
+    .search-input::placeholder {
+      color: var(--sd-text-secondary);
+    }
+
+    .clear-btn {
+      background: none;
+      border: none;
+      padding: 4px;
+      cursor: pointer;
+      color: var(--sd-text-secondary);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .clear-btn:hover {
+      background: var(--sd-hover);
+      color: var(--sd-text-primary);
+    }
+
+    .search-spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--sd-border);
+      border-top-color: var(--sd-accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
   </style>
 </head>
 <body>
@@ -353,6 +420,31 @@
   </header>
 
   <main class="main">
+    <!-- Search Box -->
+    <div class="search-box">
+      <div class="search-input-wrapper">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="搜索文章标题、作者、摘要..."
+          class="search-input"
+        />
+        <button id="clearSearchBtn" class="clear-btn" style="display: none;" aria-label="清除搜索">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <div id="searchSpinner" class="search-spinner" style="display: none;"></div>
+      </div>
+    </div>
+
     <div id="loading" class="loading">
       <div class="spinner"></div>
       <p>加载中...</p>
@@ -372,12 +464,118 @@
   </footer>
 
   <script type="module">
+    // 引入 rxjs（从 CDN）
+    import { Subject, fromEvent } from 'https://esm.sh/rxjs@7.8.1';
+    import { debounceTime, distinctUntilChanged, switchMap, tap, map } from 'https://esm.sh/rxjs@7.8.1/operators';
+
     // Supabase 配置（请替换为你的配置）
     const SUPABASE_URL = 'https://rimhmaeecdcrhuqbisjv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpbWhtYWVlY2Rjcmh1cWJpc2p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NTgwNDYsImV4cCI6MjA3OTAzNDA0Nn0.rSiGYktT3oESNSGRTY8S2hF_0_aoS6xNzzfh4d71BQY';
 
     let currentPage = 1;
     const pageSize = 12;
+    let currentSearchKeyword = '';
+
+    // 搜索相关元素
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const searchSpinner = document.getElementById('searchSpinner');
+
+    // 初始化搜索功能（使用 rxjs）
+    function initSearch() {
+      const searchSubject = new Subject();
+      
+      // 监听输入事件
+      searchInput.addEventListener('input', (e) => {
+        const value = e.target.value;
+        clearSearchBtn.style.display = value ? 'flex' : 'none';
+        searchSubject.next(value);
+      });
+
+      // 清除搜索
+      clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        clearSearchBtn.style.display = 'none';
+        searchSubject.next('');
+      });
+
+      // 使用 rxjs 处理搜索
+      searchSubject.pipe(
+        tap(() => {
+          searchSpinner.style.display = 'block';
+        }),
+        debounceTime(500), // 500ms 去抖动
+        distinctUntilChanged(), // 只有值变化时才触发
+        switchMap(async (keyword) => {
+          // switchMap 会自动取消之前未完成的请求
+          currentPage = 1;
+          currentSearchKeyword = keyword;
+          if (keyword.trim()) {
+            return searchArticles(keyword);
+          } else {
+            return loadArticles();
+          }
+        })
+      ).subscribe({
+        next: () => {
+          searchSpinner.style.display = 'none';
+        },
+        error: (error) => {
+          console.error('搜索出错:', error);
+          searchSpinner.style.display = 'none';
+        }
+      });
+    }
+
+    // 搜索文章
+    async function searchArticles(keyword) {
+      try {
+        const from = (currentPage - 1) * pageSize;
+        const searchPattern = `%${keyword}%`;
+
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/articles?select=id,title,url,author,published_date,length,summary,ai_summary,cover_image,html_file_url,pdf_file_url&or=(title.ilike.${encodeURIComponent(searchPattern)},url.ilike.${encodeURIComponent(searchPattern)},author.ilike.${encodeURIComponent(searchPattern)},summary.ilike.${encodeURIComponent(searchPattern)},ai_summary.ilike.${encodeURIComponent(searchPattern)})&order=updated_at.desc&limit=${pageSize}&offset=${from}`,
+          {
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+          }
+        );
+
+        const countResponse = await fetch(
+          `${SUPABASE_URL}/rest/v1/articles?select=count&or=(title.ilike.${encodeURIComponent(searchPattern)},url.ilike.${encodeURIComponent(searchPattern)},author.ilike.${encodeURIComponent(searchPattern)},summary.ilike.${encodeURIComponent(searchPattern)},ai_summary.ilike.${encodeURIComponent(searchPattern)})`,
+          {
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'Prefer': 'count=exact'
+            }
+          }
+        );
+
+        const articles = await response.json();
+        const countHeader = countResponse.headers.get('content-range');
+        const total = countHeader ? parseInt(countHeader.split('/')[1]) : articles.length;
+
+        document.getElementById('loading').style.display = 'none';
+
+        if (articles.length === 0) {
+          document.getElementById('empty').style.display = 'block';
+          document.getElementById('empty').innerHTML = `<h2>未找到相关文章</h2><p>尝试使用其他关键词搜索</p>`;
+          document.getElementById('content').style.display = 'none';
+          return;
+        }
+
+        document.getElementById('empty').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+        renderArticles(articles);
+        renderPagination(total);
+      } catch (error) {
+        console.error('搜索失败:', error);
+        document.getElementById('loading').innerHTML = '<p>搜索失败，请重试</p>';
+      }
+    }
 
     // 主题切换
     window.toggleTheme = function() {
@@ -569,7 +767,13 @@
       document.getElementById('content').style.display = 'none';
       document.getElementById('loading').style.display = 'block';
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      loadArticles();
+      
+      // 如果有搜索关键字，使用搜索
+      if (currentSearchKeyword.trim()) {
+        searchArticles(currentSearchKeyword);
+      } else {
+        loadArticles();
+      }
     };
 
     // 加载单篇文章
@@ -718,6 +922,7 @@
     }
 
     // 初始加载
+    initSearch();
     loadArticles();
   </script>
 </body>

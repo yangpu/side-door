@@ -6,6 +6,32 @@
       <button class="close-btn" @click="$emit('close')" aria-label="关闭">×</button>
     </div>
 
+    <!-- Search Box -->
+    <div class="search-box">
+      <div class="search-input-wrapper">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input
+          type="text"
+          v-model="searchKeyword"
+          placeholder="搜索文章标题、作者、摘要..."
+          class="search-input"
+          @input="onSearchInput"
+        />
+        <button v-if="searchKeyword" class="clear-btn" @click="clearSearch" aria-label="清除搜索">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <div v-if="searching" class="search-spinner"></div>
+      </div>
+    </div>
+
     <!-- Content -->
     <div class="read-later-content">
       <!-- Offline/Cache Status Banner -->
@@ -143,7 +169,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { Subject, Subscription } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap, tap } from 'rxjs/operators';
 import { offlineService } from '../utils/offlineService';
 import { indexedDB } from '../utils/indexedDB';
 import type { Article } from '../types/article';
@@ -152,6 +180,7 @@ import { toast } from '../utils/toast';
 const emit = defineEmits(['close', 'openArticle']);
 
 const loading = ref(false);
+const searching = ref(false);
 const articles = ref<Article[]>([]);
 const currentPage = ref(1);
 const pageSize = ref(10);
@@ -159,6 +188,11 @@ const totalPages = ref(0);
 const total = ref(0);
 const isOffline = ref(false);
 const fromCache = ref(false);
+const searchKeyword = ref('');
+
+// RxJS Subject 用于搜索输入
+const searchSubject = new Subject<string>();
+let searchSubscription: Subscription | null = null;
 
 // 离线状态提示
 const offlineMessage = computed(() => {
@@ -171,9 +205,83 @@ const offlineMessage = computed(() => {
   return '';
 });
 
+// 初始化搜索订阅
+function initSearchSubscription() {
+  searchSubscription = searchSubject.pipe(
+    tap(() => {
+      searching.value = true;
+    }),
+    debounceTime(500), // 500ms 去抖动
+    distinctUntilChanged(), // 只有值变化时才触发
+    switchMap(async (keyword) => {
+      // switchMap 会自动取消之前未完成的请求
+      currentPage.value = 1; // 搜索时重置到第一页
+      if (keyword.trim()) {
+        return searchArticles(keyword);
+      } else {
+        return loadArticlesInternal();
+      }
+    })
+  ).subscribe({
+    next: () => {
+      searching.value = false;
+    },
+    error: (error) => {
+      console.error('搜索出错:', error);
+      searching.value = false;
+      toast.error('搜索失败');
+    }
+  });
+}
+
+// 搜索输入处理
+function onSearchInput() {
+  searchSubject.next(searchKeyword.value);
+}
+
+// 清除搜索
+function clearSearch() {
+  searchKeyword.value = '';
+  searchSubject.next('');
+}
+
+// 搜索文章
+async function searchArticles(keyword: string) {
+  try {
+    const { ReadLaterService } = await import('../services/readLaterService');
+    const result = await ReadLaterService.searchArticles(keyword, {
+      page: currentPage.value,
+      pageSize: pageSize.value,
+    });
+    
+    articles.value = result.articles;
+    total.value = result.total;
+    totalPages.value = result.totalPages;
+    fromCache.value = false;
+    isOffline.value = false;
+  } catch (error) {
+    console.error('搜索文章失败:', error);
+    toast.error('搜索失败: ' + (error as Error).message);
+  }
+}
+
 // 加载文章列表（使用离线优先策略）
 async function loadArticles() {
+  // 如果有搜索关键字，使用搜索
+  if (searchKeyword.value.trim()) {
+    searching.value = true;
+    await searchArticles(searchKeyword.value);
+    searching.value = false;
+    return;
+  }
+  
   loading.value = true;
+  await loadArticlesInternal();
+  loading.value = false;
+}
+
+// 内部加载文章方法（不设置 loading 状态）
+async function loadArticlesInternal() {
   fromCache.value = false;
   
   try {
@@ -219,8 +327,6 @@ async function loadArticles() {
       console.error('从 IndexedDB 加载失败:', dbError);
       toast.error('加载失败: ' + (error as Error).message);
     }
-  } finally {
-    loading.value = false;
   }
 }
 
@@ -338,6 +444,9 @@ function formatDate(dateStr: string): string {
 
 // 组件挂载时加载文章
 onMounted(async () => {
+  // 初始化搜索订阅
+  initSearchSubscription();
+  
   // 初始化 IndexedDB
   await indexedDB.init().catch(err => {
     console.warn('[PWA] IndexedDB 初始化失败:', err);
@@ -365,6 +474,13 @@ onMounted(async () => {
     window.removeEventListener('online', handleOnline);
     window.removeEventListener('offline', handleOffline);
   };
+});
+
+// 组件卸载时清理订阅
+onUnmounted(() => {
+  if (searchSubscription) {
+    searchSubscription.unsubscribe();
+  }
 });
 </script>
 
@@ -409,6 +525,75 @@ onMounted(async () => {
 .close-btn:hover {
   background: var(--hover-bg-color);
   color: var(--text-color);
+}
+
+/* Search Box */
+.search-box {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-color);
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--background-color);
+  transition: all 0.2s;
+}
+
+.search-input-wrapper:focus-within {
+  border-color: var(--primary-color, #007bff);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.search-icon {
+  color: var(--secondary-text-color);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  background: transparent;
+  color: var(--text-color);
+}
+
+.search-input::placeholder {
+  color: var(--secondary-text-color);
+}
+
+.clear-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--secondary-text-color);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.clear-btn:hover {
+  background: var(--hover-bg-color);
+  color: var(--text-color);
+}
+
+.search-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color, #007bff);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 .read-later-content {
