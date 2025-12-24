@@ -23,7 +23,7 @@ import { createServer } from 'http';
 import { readFile } from 'fs/promises';
 import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { networkInterfaces } from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -49,6 +49,8 @@ const MIME_TYPES = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
+  '.crx': 'application/x-chrome-extension',
+  '.zip': 'application/zip',
 };
 
 // 路由配置
@@ -60,6 +62,34 @@ const ROUTES = {
   '/article': 'public/article-detail.html',
   '/article.html': 'public/article-detail.html',
 };
+
+// 获取最新的 CRX 文件
+function getLatestCrxFile() {
+  const outputDir = join(__dirname, '.output');
+  if (!existsSync(outputDir)) return null;
+  
+  const files = readdirSync(outputDir);
+  const crxFiles = files.filter(f => f.endsWith('.crx')).sort().reverse();
+  
+  if (crxFiles.length > 0) {
+    return join(outputDir, crxFiles[0]);
+  }
+  return null;
+}
+
+// 获取最新的 ZIP 文件
+function getLatestZipFile() {
+  const outputDir = join(__dirname, '.output');
+  if (!existsSync(outputDir)) return null;
+  
+  const files = readdirSync(outputDir);
+  const zipFiles = files.filter(f => f.endsWith('.zip') && f.startsWith('side-door')).sort().reverse();
+  
+  if (zipFiles.length > 0) {
+    return join(outputDir, zipFiles[0]);
+  }
+  return null;
+}
 
 // 获取 MIME 类型
 function getMimeType(filePath) {
@@ -194,7 +224,67 @@ const server = createServer(async (req, res) => {
     if (await sendFile(res, rootPath, 'max-age=3600')) return;
   }
   
-  // 10. 健康检查
+  // 10. 下载扩展 CRX 文件
+  if (pathname === '/download/extension.crx' || pathname === '/extension.crx') {
+    const crxFile = getLatestCrxFile();
+    if (crxFile && existsSync(crxFile)) {
+      const fileName = crxFile.split('/').pop();
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      if (await sendFile(res, crxFile, 'no-cache')) return;
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        error: 'CRX 文件不存在',
+        message: '请先运行 npm run build && npm run pack:crx 生成扩展包',
+      }));
+      return;
+    }
+  }
+  
+  // 11. 下载扩展 ZIP 文件
+  if (pathname === '/download/extension.zip' || pathname === '/extension.zip') {
+    const zipFile = getLatestZipFile();
+    if (zipFile && existsSync(zipFile)) {
+      const fileName = zipFile.split('/').pop();
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      if (await sendFile(res, zipFile, 'no-cache')) return;
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        error: 'ZIP 文件不存在',
+        message: '请先运行 npm run build && npm run pack:crx 生成扩展包',
+      }));
+      return;
+    }
+  }
+  
+  // 12. 获取扩展信息 API
+  if (pathname === '/api/extension-info') {
+    const crxFile = getLatestCrxFile();
+    const zipFile = getLatestZipFile();
+    
+    // 读取版本信息
+    let version = 'unknown';
+    const manifestPath = join(__dirname, '.output/chrome-mv3/manifest.json');
+    if (existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+        version = manifest.version;
+      } catch (e) {}
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      version,
+      crxAvailable: !!crxFile,
+      zipAvailable: !!zipFile,
+      crxUrl: crxFile ? '/download/extension.crx' : null,
+      zipUrl: zipFile ? '/download/extension.zip' : null,
+    }));
+    return;
+  }
+  
+  // 13. 健康检查
   if (pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({

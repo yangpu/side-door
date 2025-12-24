@@ -13,6 +13,8 @@
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
+    "pack:crx": "npx tsx scripts/pack-crx.ts",
+    "build:pack": "npm run build && npm run pack:crx",
     "compile": "vue-tsc --noEmit",
     "postinstall": "wxt prepare",
     "upload:read-later-home": "npx tsx scripts/upload-read-later-home.ts",
