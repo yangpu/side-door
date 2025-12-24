@@ -591,14 +591,16 @@ async function getCachedContent(cacheName, url) {
 async function cacheExternalResource(cacheName, url) {
   try {
     const response = await fetch(url, { mode: 'cors' });
-    if (response.ok) {
+    // 只缓存成功的响应，避免 Cache.put() network error
+    if (response.ok && response.status === 200) {
       const cache = await caches.open(cacheName);
-      await cache.put(url, response);
+      // 克隆响应以确保可以被缓存
+      await cache.put(url, response.clone());
       return true;
     }
     return false;
   } catch (error) {
-    console.error('[SW] 缓存外部资源失败:', error);
+    // 网络错误时静默失败，不打印错误日志
     return false;
   }
 }
@@ -615,8 +617,9 @@ async function prefetchResources(cacheName, urls) {
       const existing = await cache.match(url);
       if (!existing) {
         const response = await fetch(url);
-        if (response.ok) {
-          await cache.put(url, response);
+        // 只缓存成功的响应
+        if (response.ok && response.status === 200) {
+          await cache.put(url, response.clone());
           results.push({ url, success: true });
         } else {
           results.push({ url, success: false, error: `HTTP ${response.status}` });

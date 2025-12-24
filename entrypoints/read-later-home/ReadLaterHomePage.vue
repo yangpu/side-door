@@ -30,6 +30,41 @@
 
     <!-- Main Content -->
     <main class="main-content">
+      <!-- Search Box with Refresh Button -->
+      <div class="search-box">
+        <div class="search-input-wrapper">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            v-model="searchKeyword"
+            placeholder="搜索文章标题、作者、摘要..."
+            class="search-input"
+            @input="onSearchInput"
+          />
+          <button v-if="searchKeyword" class="clear-btn" @click="clearSearch" aria-label="清除搜索">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          <div v-if="searching" class="search-spinner"></div>
+        </div>
+        <button class="refresh-btn" @click="refreshArticles" :disabled="loading || searching" title="刷新列表">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            :class="{ 'spinning': loading || searching }">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+      </div>
+
       <!-- Offline Status Banner -->
       <div v-if="offlineMessage" class="offline-banner">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -150,6 +185,14 @@
                 </svg>
                 原文
               </button>
+              <button class="action-btn delete-btn" @click="deleteArticle(article)" title="删除">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                删除
+              </button>
             </div>
           </article>
         </div>
@@ -205,6 +248,9 @@ const total = ref(0);
 const isDarkMode = ref(false);
 const isOffline = ref(false);
 const networkStatus = ref<any>(null);
+const searchKeyword = ref('');
+const searching = ref(false);
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // 计算显示的离线状态提示
 const offlineMessage = computed(() => {
@@ -226,6 +272,7 @@ async function loadArticles() {
     const result = await offlineService.getArticles({
       page: currentPage.value,
       pageSize: pageSize.value,
+      keyword: searchKeyword.value.trim() || undefined,
     });
     
     articles.value = result.articles;
@@ -236,7 +283,19 @@ async function loadArticles() {
     
     // 如果加载失败，尝试从 IndexedDB 获取所有文章
     try {
-      const allArticles = await indexedDB.getAllArticles();
+      let allArticles = await indexedDB.getAllArticles();
+      
+      // 本地搜索过滤
+      if (searchKeyword.value.trim()) {
+        const keyword = searchKeyword.value.trim().toLowerCase();
+        allArticles = allArticles.filter(article => 
+          article.title?.toLowerCase().includes(keyword) ||
+          article.author?.toLowerCase().includes(keyword) ||
+          article.summary?.toLowerCase().includes(keyword) ||
+          article.ai_summary?.toLowerCase().includes(keyword)
+        );
+      }
+      
       const start = (currentPage.value - 1) * pageSize.value;
       const end = start + pageSize.value;
       articles.value = allArticles.slice(start, end);
@@ -248,7 +307,34 @@ async function loadArticles() {
     }
   } finally {
     loading.value = false;
+    searching.value = false;
   }
+}
+
+// 搜索输入处理（防抖）
+function onSearchInput() {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+  searching.value = true;
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1;
+    loadArticles();
+  }, 500);
+}
+
+// 清除搜索
+function clearSearch() {
+  searchKeyword.value = '';
+  currentPage.value = 1;
+  loadArticles();
+}
+
+// 刷新文章列表
+async function refreshArticles() {
+  searchKeyword.value = '';
+  currentPage.value = 1;
+  await loadArticles();
 }
 
 // 打开文章（在阅读器中打开，支持离线缓存）
@@ -261,6 +347,41 @@ function openArticle(article: Article) {
 // 打开原文
 function openOriginalUrl(url: string) {
   window.open(url, '_blank');
+}
+
+// 删除文章
+async function deleteArticle(article: Article) {
+  if (!confirm(`确定要删除「${article.title}」吗？\n\n此操作不可撤销。`)) {
+    return;
+  }
+
+  try {
+    const { ReadLaterService } = await import('../../services/readLaterService');
+    const result = await ReadLaterService.deleteArticle(article.id!);
+    if (result.success) {
+      // 同时从 IndexedDB 删除
+      try {
+        await indexedDB.deleteArticle(article.id!);
+      } catch (error) {
+        console.warn('从缓存删除失败:', error);
+      }
+      
+      // 从列表中移除
+      articles.value = articles.value.filter((a) => a.id !== article.id);
+      total.value--;
+      
+      // 如果当前页没有文章了，返回上一页
+      if (articles.value.length === 0 && currentPage.value > 1) {
+        currentPage.value--;
+        await loadArticles();
+      }
+    } else {
+      alert('删除失败: ' + (result.error || '未知错误'));
+    }
+  } catch (error) {
+    console.error('删除文章失败:', error);
+    alert('删除失败，请重试');
+  }
 }
 
 // 打开 HTML 或 PDF 文件
@@ -434,6 +555,106 @@ onMounted(async () => {
   width: 100%;
   margin: 0 auto;
   padding: 32px;
+}
+
+/* Search Box */
+.search-box {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.search-input-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--sd-border-color);
+  border-radius: 10px;
+  background: var(--sd-background-primary);
+  transition: all 0.2s;
+}
+
+.search-input-wrapper:focus-within {
+  border-color: var(--sd-accent-color);
+  box-shadow: 0 0 0 3px rgba(255, 123, 114, 0.1);
+}
+
+.search-icon {
+  color: var(--sd-text-secondary);
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 15px;
+  background: transparent;
+  color: var(--sd-text-primary);
+}
+
+.search-input::placeholder {
+  color: var(--sd-text-secondary);
+}
+
+.clear-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--sd-text-secondary);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.clear-btn:hover {
+  background: var(--sd-hover-background);
+  color: var(--sd-text-primary);
+}
+
+.search-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--sd-border-color);
+  border-top-color: var(--sd-accent-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--sd-border-color);
+  border-radius: 10px;
+  background: var(--sd-background-primary);
+  color: var(--sd-text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  border-color: var(--sd-accent-color);
+  color: var(--sd-accent-color);
+  background: var(--sd-hover-background);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.refresh-btn svg.spinning {
+  animation: spin 1s linear infinite;
 }
 
 /* Offline Banner */
@@ -640,6 +861,12 @@ onMounted(async () => {
 
 .action-btn svg {
   flex-shrink: 0;
+}
+
+.delete-btn:hover {
+  background: #fee;
+  border-color: #f44;
+  color: #f44;
 }
 
 /* Pagination */

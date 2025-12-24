@@ -121,7 +121,10 @@ class OfflineService {
       this.networkStatus.lastCheck = Date.now();
       
       if (error) {
-        console.warn('[OfflineService] Supabase 不可用:', error.message);
+        // AbortError 是正常的超时行为，不需要警告
+        if (error.message && !error.message.includes('abort')) {
+          console.warn('[OfflineService] Supabase 不可用:', error.message);
+        }
       }
 
       // 如果状态变化，通知监听器
@@ -131,7 +134,11 @@ class OfflineService {
 
       return this.networkStatus.supabaseAvailable;
     } catch (error) {
-      console.warn('[OfflineService] 检查 Supabase 可用性失败:', (error as Error).message);
+      const errorMessage = (error as Error).message || '';
+      // AbortError 是正常的超时行为，不需要警告
+      if (!errorMessage.includes('abort')) {
+        console.warn('[OfflineService] 检查 Supabase 可用性失败:', errorMessage);
+      }
       this.networkStatus.supabaseAvailable = false;
       this.networkStatus.lastCheck = Date.now();
       return false;

@@ -48,6 +48,15 @@
         </button>
         <div v-if="searching" class="search-spinner"></div>
       </div>
+      <button class="refresh-btn" @click="refreshArticles" :disabled="loading || searching" title="刷新列表">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          :class="{ 'spinning': loading || searching }">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      </button>
     </div>
 
     <!-- Content -->
@@ -179,6 +188,13 @@ function clearSearch() {
   searchSubject.next('');
 }
 
+// 刷新文章列表
+async function refreshArticles() {
+  searchKeyword.value = '';
+  currentPage.value = 1;
+  await loadArticles();
+}
+
 // 搜索文章
 async function searchArticles(keyword: string) {
   try {
@@ -264,7 +280,7 @@ async function openArticleInNewTab(article: Article) {
     }
     
     // 预加载文章数据到缓存（提升打开速度）
-    offlineService.getArticle(article.id).catch(err => {
+    offlineService.getArticle(article.id).catch((err: unknown) => {
       console.warn('[PWA Popup] 预加载文章失败:', err);
     });
     
@@ -376,7 +392,7 @@ onMounted(async () => {
   initSearchSubscription();
   
   // 初始化 IndexedDB
-  await indexedDB.init().catch(err => {
+  await indexedDB.init().catch((err: unknown) => {
     console.warn('IndexedDB 初始化失败:', err);
   });
   
@@ -492,12 +508,15 @@ onUnmounted(() => {
 
 /* Search Box */
 .search-box {
+  display: flex;
+  gap: 8px;
   padding: 8px 16px;
   border-bottom: 1px solid var(--sd-border-color);
   background: var(--sd-background-primary);
 }
 
 .search-input-wrapper {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -558,6 +577,36 @@ onUnmounted(() => {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
+}
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--sd-border-color);
+  border-radius: 6px;
+  background: var(--sd-background-primary);
+  color: var(--sd-text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  border-color: var(--sd-accent-color);
+  color: var(--sd-accent-color);
+  background: var(--sd-hover-background);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.refresh-btn svg.spinning {
+  animation: spin 1s linear infinite;
 }
 
 /* Content */

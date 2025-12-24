@@ -36,7 +36,7 @@
     }
 
     .header-content {
-      max-width: 1200px;
+      max-width: 1000px;
       margin: 0 auto;
       padding: 16px 32px;
       display: flex;
@@ -194,7 +194,11 @@
     const SUPABASE_URL = 'https://rimhmaeecdcrhuqbisjv.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJpbWhtYWVlY2Rjcmh1cWJpc2p2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0NTgwNDYsImV4cCI6MjA3OTAzNDA0Nn0.rSiGYktT3oESNSGRTY8S2hF_0_aoS6xNzzfh4d71BQY';
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // 检查 Supabase SDK 是否加载成功
+    let supabaseClient = null;
+    if (window.supabase && window.supabase.createClient) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
 
     function goToHome() {
       window.location.href = '/';
@@ -251,6 +255,131 @@
       return div.innerHTML;
     }
 
+    // 渲染文章内容
+    function renderArticle(article) {
+      // 构建文章元信息
+      let metaItems = [];
+      if (article.author) {
+        metaItems.push(`<span class="detail-item">
+          <span class="detail-label">作者:</span>
+          <span class="detail-value">${escapeHtml(article.author)}</span>
+        </span>`);
+      }
+      if (article.published_date) {
+        metaItems.push(`<span class="detail-item">
+          <span class="detail-label">发布时间:</span>
+          <span class="detail-value">${formatDate(article.published_date)}</span>
+        </span>`);
+      }
+      if (article.length) {
+        metaItems.push(`<span class="detail-item">
+          <span class="detail-label">字数:</span>
+          <span class="detail-value">${article.length} 字</span>
+        </span>`);
+      }
+      if (article.url) {
+        metaItems.push(`<span class="detail-item">
+          <button class="original-link-btn" onclick="window.open('${escapeHtml(article.url)}', '_blank')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            查看原文
+          </button>
+        </span>`);
+      }
+
+      // 构建摘要部分
+      let summaryHtml = '';
+      if (article.ai_summary || article.summary) {
+        summaryHtml = `<div class="summary">
+          <h3 class="summary-title">摘要</h3>
+          <div class="summary-content">${article.ai_summary || article.summary}</div>
+        </div>`;
+      }
+
+      // 渲染文章
+      document.getElementById('content').innerHTML = `
+        <h1 class="article-title">${escapeHtml(article.title || '无标题')}</h1>
+        <div class="article-details">
+          ${metaItems.join('')}
+        </div>
+        ${summaryHtml}
+        <div class="article-content">
+          ${article.content || '<p>文章内容为空</p>'}
+        </div>
+      `;
+    }
+
+    // 从网络加载文章
+    async function fetchArticleFromNetwork(articleId) {
+      // 优先使用 Supabase SDK
+      if (supabaseClient) {
+        const { data: article, error } = await supabaseClient
+          .from('articles')
+          .select('*')
+          .eq('id', articleId)
+          .single();
+        
+        if (error) throw error;
+        return article;
+      }
+      
+      // 回退到 REST API
+      const response = await fetch(
+        `${SUPABASE_URL}/rest/v1/articles?id=eq.${articleId}&select=*`,
+        {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      const articles = await response.json();
+      return articles[0] || null;
+    }
+
+    // 从 IndexedDB 加载文章（离线缓存）
+    async function fetchArticleFromCache(articleId) {
+      return new Promise((resolve) => {
+        try {
+          const request = indexedDB.open('SideDoorOfflineDB', 1);
+          
+          request.onerror = () => resolve(null);
+          
+          request.onsuccess = () => {
+            const db = request.result;
+            
+            // 检查是否有 articles store
+            if (!db.objectStoreNames.contains('articles')) {
+              resolve(null);
+              return;
+            }
+            
+            const transaction = db.transaction(['articles'], 'readonly');
+            const store = transaction.objectStore('articles');
+            const getRequest = store.get(articleId);
+            
+            getRequest.onsuccess = () => resolve(getRequest.result || null);
+            getRequest.onerror = () => resolve(null);
+          };
+          
+          request.onupgradeneeded = () => {
+            // 数据库不存在或版本不对，返回 null
+            resolve(null);
+          };
+        } catch (e) {
+          resolve(null);
+        }
+      });
+    }
+
     async function loadArticle() {
       const urlParams = new URLSearchParams(window.location.search);
       const articleId = urlParams.get('articleId');
@@ -262,75 +391,45 @@
         return;
       }
 
+      // 检查是否离线
+      const isOffline = !navigator.onLine;
+      
       try {
-        const { data: article, error } = await supabase
-          .from('articles')
-          .select('*')
-          .eq('id', articleId)
-          .single();
+        let article = null;
+        
+        if (isOffline) {
+          // 离线时直接从缓存加载
+          console.log('离线模式，从缓存加载');
+          article = await fetchArticleFromCache(articleId);
+          
+          if (!article) {
+            document.getElementById('content').innerHTML = `
+              <div class="error-state">
+                <p>离线模式下无法加载文章</p>
+                <p style="font-size: 14px; margin-top: 8px;">请连接网络后重试，或确保该文章已被缓存</p>
+              </div>
+            `;
+            return;
+          }
+        } else {
+          // 在线时从网络加载
+          try {
+            article = await fetchArticleFromNetwork(articleId);
+          } catch (networkError) {
+            console.warn('网络加载失败，尝试缓存:', networkError);
+            // 网络失败，尝试缓存
+            article = await fetchArticleFromCache(articleId);
+          }
+        }
 
         console.log('文章数据:', article);
-
-        if (error) throw error;
 
         if (!article) {
           document.getElementById('content').innerHTML = '<div class="error-state"><p>文章不存在</p></div>';
           return;
         }
 
-        // 构建文章元信息
-        let metaItems = [];
-        if (article.author) {
-          metaItems.push(`<span class="detail-item">
-            <span class="detail-label">作者:</span>
-            <span class="detail-value">${escapeHtml(article.author)}</span>
-          </span>`);
-        }
-        if (article.published_date) {
-          metaItems.push(`<span class="detail-item">
-            <span class="detail-label">发布时间:</span>
-            <span class="detail-value">${formatDate(article.published_date)}</span>
-          </span>`);
-        }
-        if (article.length) {
-          metaItems.push(`<span class="detail-item">
-            <span class="detail-label">字数:</span>
-            <span class="detail-value">${article.length} 字</span>
-          </span>`);
-        }
-        if (article.url) {
-          metaItems.push(`<span class="detail-item">
-            <button class="original-link-btn" onclick="window.open('${escapeHtml(article.url)}', '_blank')">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <line x1="10" y1="14" x2="21" y2="3"></line>
-              </svg>
-              查看原文
-            </button>
-          </span>`);
-        }
-
-        // 构建摘要部分
-        let summaryHtml = '';
-        if (article.ai_summary || article.summary) {
-          summaryHtml = `<div class="summary">
-            <h3 class="summary-title">摘要</h3>
-            <div class="summary-content">${article.ai_summary || article.summary}</div>
-          </div>`;
-        }
-
-        // 渲染文章
-        document.getElementById('content').innerHTML = `
-          <h1 class="article-title">${escapeHtml(article.title || '无标题')}</h1>
-          <div class="article-details">
-            ${metaItems.join('')}
-          </div>
-          ${summaryHtml}
-          <div class="article-content">
-            ${article.content || '<p>文章内容为空</p>'}
-          </div>
-        `;
+        renderArticle(article);
 
       } catch (error) {
         console.error('加载文章失败:', error);

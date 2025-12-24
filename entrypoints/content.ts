@@ -59,6 +59,9 @@ export default defineContentScript({
       if (document.body) {
         // 添加元素ID
         addElementIds();
+        
+        // 标记扩展已安装（供网页检测）
+        markExtensionInstalled();
 
         createFloatingElements(document);
         isInitialized = true;
@@ -67,6 +70,7 @@ export default defineContentScript({
 
       const observer = new MutationObserver((mutations, obs) => {
         if (document.body) {
+          markExtensionInstalled();
           createFloatingElements(document);
           isInitialized = true;
           obs.disconnect();
@@ -77,6 +81,23 @@ export default defineContentScript({
         childList: true,
         subtree: true,
       });
+    };
+    
+    // 标记扩展已安装
+    const markExtensionInstalled = () => {
+      // 方法1: 设置全局变量
+      (window as any).__SIDEDOOR_EXTENSION_INSTALLED__ = true;
+      
+      // 方法2: 添加隐藏的 DOM 标记
+      if (!document.getElementById('sidedoor-extension-marker')) {
+        const marker = document.createElement('div');
+        marker.id = 'sidedoor-extension-marker';
+        marker.style.display = 'none';
+        document.body.appendChild(marker);
+      }
+      
+      // 方法3: 发送消息给页面
+      window.postMessage({ type: 'SIDEDOOR_EXTENSION_READY' }, '*');
     };
 
     // 监听 URL 变化

@@ -202,43 +202,66 @@ class IndexedDBService {
   /**
    * 保存单篇文章
    * 优化：如果已有完整版本（有 content），不用列表数据（无 content）覆盖
+   * 处理 URL 唯一性约束：先检查是否存在相同 URL 的文章
    */
   async saveArticle(article: Article): Promise<void> {
     const db = await this.ensureDB();
+    
+    // 第一步：检查是否已有相同 ID 的文章
+    const existingById = await this.getArticle(article.id);
+    
+    // 如果已有完整文章（有 content），且新数据没有 content，则不覆盖
+    const existingHasContent = existingById && existingById.content && existingById.content.length > 0;
+    const newHasContent = article.content && article.content.length > 0;
+    
+    if (existingHasContent && !newHasContent) {
+      return; // 不覆盖完整数据
+    }
+    
+    // 第二步：如果是新文章且有 URL，检查 URL 是否已存在（不同 ID 但相同 URL）
+    let finalArticle = article;
+    let oldIdToDelete: string | null = null;
+    
+    if (!existingById && article.url) {
+      const existingByUrl = await this.getArticleByUrl(article.url);
+      if (existingByUrl && existingByUrl.id !== article.id) {
+        // URL 已存在于不同 ID 的记录中，需要删除旧记录
+        oldIdToDelete = existingByUrl.id;
+        // 合并数据，使用新的 ID
+        finalArticle = {
+          ...existingByUrl,
+          ...article,
+          // 保持新文章的 ID
+        };
+      }
+    }
+    
+    // 第三步：执行保存操作
     const transaction = db.transaction([this.stores.articles], 'readwrite');
     const store = transaction.objectStore(this.stores.articles);
-
-    return new Promise(async (resolve, reject) => {
-      try {
-        // 1. 先检查是否已有缓存
-        const existingRequest = store.get(article.id);
-        
-        existingRequest.onsuccess = () => {
-          const existing = existingRequest.result;
-          
-          // 2. 如果已有完整文章（有 content），且新数据没有 content，则不覆盖
-          const existingHasContent = existing && existing.content && existing.content.length > 0;
-          const newHasContent = article.content && article.content.length > 0;
-          
-          if (existingHasContent && !newHasContent) {
-            resolve();
-            return;
-          }
-          
-          // 3. 否则正常保存
-          const articleWithCache = {
-            ...article,
-            cached_at: Date.now(),
-          };
-          
-          const putRequest = store.put(articleWithCache);
-          putRequest.onsuccess = () => resolve();
-          putRequest.onerror = () => reject(putRequest.error);
+    
+    return new Promise((resolve, reject) => {
+      const doSave = () => {
+        const articleWithCache = {
+          ...finalArticle,
+          cached_at: Date.now(),
         };
         
-        existingRequest.onerror = () => reject(existingRequest.error);
-      } catch (error) {
-        reject(error);
+        const request = store.put(articleWithCache);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      };
+      
+      // 如果需要先删除旧记录
+      if (oldIdToDelete) {
+        const deleteRequest = store.delete(oldIdToDelete);
+        deleteRequest.onsuccess = () => doSave();
+        deleteRequest.onerror = () => {
+          // 删除失败也尝试保存
+          doSave();
+        };
+      } else {
+        doSave();
       }
     });
   }

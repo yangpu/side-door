@@ -345,10 +345,13 @@
 
     /* Search Box */
     .search-box {
+      display: flex;
+      gap: 12px;
       margin-bottom: 24px;
     }
 
     .search-input-wrapper {
+      flex: 1;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -409,6 +412,230 @@
       animation: spin 0.8s linear infinite;
       flex-shrink: 0;
     }
+
+    .refresh-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      border: 1px solid var(--sd-border);
+      border-radius: 10px;
+      background: var(--sd-bg-primary);
+      color: var(--sd-text-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .refresh-btn:hover:not(:disabled) {
+      border-color: var(--sd-accent);
+      color: var(--sd-accent);
+      background: var(--sd-hover);
+    }
+
+    .refresh-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .refresh-btn.spinning svg {
+      animation: spin 1s linear infinite;
+    }
+
+    /* Install Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s;
+    }
+
+    .modal-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--sd-bg-primary);
+      border-radius: 16px;
+      max-width: 480px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      transform: scale(0.9);
+      transition: transform 0.3s;
+    }
+
+    .modal-overlay.show .modal {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      padding: 24px 24px 16px;
+      border-bottom: 1px solid var(--sd-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-header h2 {
+      font-size: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: var(--sd-hover);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--sd-text-secondary);
+      transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+      background: var(--sd-border);
+      color: var(--sd-text-primary);
+    }
+
+    .modal-body {
+      padding: 24px;
+    }
+
+    .install-steps {
+      list-style: none;
+      counter-reset: step;
+    }
+
+    .install-steps li {
+      counter-increment: step;
+      padding: 12px 0;
+      padding-left: 40px;
+      position: relative;
+      border-bottom: 1px solid var(--sd-border);
+    }
+
+    .install-steps li:last-child {
+      border-bottom: none;
+    }
+
+    .install-steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 12px;
+      width: 28px;
+      height: 28px;
+      background: var(--sd-accent);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .install-steps li strong {
+      color: var(--sd-accent);
+    }
+
+    .install-steps code {
+      background: var(--sd-bg-secondary);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .modal-footer {
+      padding: 16px 24px 24px;
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+
+    .modal-btn {
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-btn-secondary {
+      background: var(--sd-bg-secondary);
+      border: 1px solid var(--sd-border);
+      color: var(--sd-text-primary);
+    }
+
+    .modal-btn-secondary:hover {
+      background: var(--sd-hover);
+      border-color: var(--sd-accent);
+    }
+
+    .modal-btn-primary {
+      background: var(--sd-accent);
+      border: 1px solid var(--sd-accent);
+      color: white;
+    }
+
+    .modal-btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    .modal-btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .download-status {
+      font-size: 13px;
+      color: var(--sd-text-secondary);
+      margin-top: 16px;
+      padding: 12px;
+      background: var(--sd-bg-secondary);
+      border-radius: 8px;
+      display: none;
+    }
+
+    .download-status.show {
+      display: block;
+    }
+
+    .download-status.success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    [data-theme='dark'] .download-status.success {
+      background: #1b3d1f;
+      color: #81c784;
+    }
   </style>
 </head>
 <body>
@@ -458,6 +685,14 @@
         </button>
         <div id="searchSpinner" class="search-spinner" style="display: none;"></div>
       </div>
+      <button id="refreshBtn" class="refresh-btn" onclick="refreshArticles()" title="刷新列表">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      </button>
     </div>
 
     <div id="loading" class="loading">
@@ -477,6 +712,46 @@
   <footer class="footer">
     <p>Powered by SideDoor</p>
   </footer>
+
+  <!-- Install Modal -->
+  <div id="installModal" class="modal-overlay" onclick="if(event.target === this) closeInstallModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>📦 安装 SideDoor 扩展</h2>
+        <button class="modal-close" onclick="closeInstallModal()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="margin-bottom: 16px; color: var(--sd-text-secondary);">
+          请按以下步骤安装扩展：
+        </p>
+        <ol class="install-steps">
+          <li>点击下方 <strong>下载扩展包</strong> 按钮</li>
+          <li>解压下载的 <code>side-door-xxx.zip</code> 文件</li>
+          <li>打开 Chrome 浏览器，访问 <code>chrome://extensions/</code></li>
+          <li>开启右上角的 <strong>开发者模式</strong></li>
+          <li>点击 <strong>加载已解压的扩展程序</strong></li>
+          <li>选择解压后的文件夹，完成安装</li>
+        </ol>
+        <div id="downloadStatus" class="download-status"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-secondary" onclick="closeInstallModal()">取消</button>
+        <button id="downloadBtn" class="modal-btn modal-btn-primary" onclick="downloadExtensionZip()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          下载扩展包
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script type="module">
     // 原生实现防抖搜索（替代 rxjs，避免大量网络请求）
@@ -753,6 +1028,13 @@
               </svg>
               原文
             </button>
+            <button class="action-btn delete-btn" onclick="deleteArticle('${article.id}', '${escapeHtml(article.title).replace(/'/g, "\\'")}')" title="删除">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              删除
+            </button>
           </div>
         </div>
       `;
@@ -861,6 +1143,66 @@
       window.open(readerUrl, '_blank');
     };
     
+    // 刷新文章列表
+    window.refreshArticles = async function() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      refreshBtn.classList.add('spinning');
+      refreshBtn.disabled = true;
+      
+      // 清除搜索
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      currentSearchKeyword = '';
+      lastSearchValue = '';
+      currentPage = 1;
+      
+      document.getElementById('content').style.display = 'none';
+      document.getElementById('loading').style.display = 'block';
+      
+      try {
+        await loadArticles();
+      } finally {
+        refreshBtn.classList.remove('spinning');
+        refreshBtn.disabled = false;
+      }
+    };
+    
+    // 删除文章
+    window.deleteArticle = async function(id, title) {
+      if (!confirm(`确定要删除「${title}」吗？\n\n此操作不可撤销。`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/articles?id=eq.${id}`,
+          {
+            method: 'DELETE',
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+          }
+        );
+
+        if (response.ok || response.status === 204) {
+          alert('文章已删除');
+          // 重新加载列表
+          if (currentSearchKeyword.trim()) {
+            searchArticles(currentSearchKeyword);
+          } else {
+            loadArticles();
+          }
+        } else {
+          const error = await response.json();
+          alert('删除失败: ' + (error.message || '未知错误'));
+        }
+      } catch (error) {
+        console.error('删除文章失败:', error);
+        alert('删除失败，请重试');
+      }
+    };
+    
     // 打开文件（HTML 或 PDF）
     window.openFile = async function(fileUrl) {
       if (!fileUrl) {
@@ -897,117 +1239,79 @@
 
     // 下载扩展
     window.downloadExtension = async function() {
-      const installBtn = document.querySelector('.install-btn');
-      const originalText = installBtn.innerHTML;
+      // 显示安装弹窗
+      document.getElementById('installModal').classList.add('show');
+    };
+    
+    // 关闭安装弹窗
+    window.closeInstallModal = function() {
+      document.getElementById('installModal').classList.remove('show');
+      // 重置状态
+      const downloadStatus = document.getElementById('downloadStatus');
+      downloadStatus.classList.remove('show', 'success');
+      downloadStatus.textContent = '';
+    };
+    
+    // 下载扩展 ZIP 包
+    window.downloadExtensionZip = async function() {
+      const downloadBtn = document.getElementById('downloadBtn');
+      const downloadStatus = document.getElementById('downloadStatus');
+      const originalText = downloadBtn.innerHTML;
       
       try {
-        // 首先检查扩展信息
+        // 显示加载状态
+        downloadBtn.innerHTML = `
+          <svg class="spinner" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"></circle>
+          </svg>
+          下载中...
+        `;
+        downloadBtn.disabled = true;
+        
+        // 检查扩展信息
         const infoResponse = await fetch('/api/extension-info');
         
         if (infoResponse.ok) {
           const info = await infoResponse.json();
           
-          if (info.crxAvailable || info.zipAvailable) {
-            const fileType = info.crxAvailable ? 'CRX' : 'ZIP';
-            const fileSize = info.crxAvailable ? 'CRX' : 'ZIP';
+          if (info.zipAvailable) {
+            // 下载 ZIP 文件
+            const link = document.createElement('a');
+            link.href = '/download/extension.zip';
+            link.download = `side-door-${info.version}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
             
-            // 先询问用户是否下载
-            const confirmed = confirm(`📦 SideDoor v${info.version} 扩展安装包已准备就绪
-
-是否下载 ${fileType} 安装包？
-
-下载后安装步骤：
-1. 打开 Chrome 浏览器
-2. 访问 chrome://extensions/
-3. 开启"开发者模式"
-4. ${info.crxAvailable ? '将 CRX 文件拖放到页面中' : '解压 ZIP 后点击"加载已解压的扩展程序"'}
-
-点击"确定"开始下载`);
+            // 显示成功状态
+            downloadStatus.innerHTML = `✅ <strong>下载成功！</strong><br>文件名: side-door-${info.version}.zip<br><br>请按照上方步骤完成安装，安装后刷新此页面即可使用完整功能。`;
+            downloadStatus.classList.add('show', 'success');
             
-            if (!confirmed) return;
-            
-            // 显示下载状态
-            installBtn.innerHTML = `
-              <svg class="spinner" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"></circle>
+            // 更新按钮
+            downloadBtn.innerHTML = `
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
-              下载中...
+              下载完成
             `;
-            installBtn.disabled = true;
-            
-            if (info.crxAvailable) {
-              // 下载 CRX 文件
-              const link = document.createElement('a');
-              link.href = '/download/extension.crx';
-              link.download = `side-door-${info.version}.crx`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              
-              // 下载成功提示
-              setTimeout(() => {
-                alert(`✅ 下载完成！
-
-请按以下步骤安装：
-1. 打开 Chrome，访问 chrome://extensions/
-2. 开启右上角的"开发者模式"
-3. 将下载的 side-door-${info.version}.crx 文件拖放到页面中
-4. 点击"添加扩展程序"确认
-
-安装完成后刷新此页面即可使用完整功能！`);
-              }, 800);
-            } else {
-              // 下载 ZIP 文件
-              const link = document.createElement('a');
-              link.href = '/download/extension.zip';
-              link.download = `side-door-${info.version}.zip`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              
-              setTimeout(() => {
-                alert(`✅ 下载完成！
-
-请按以下步骤安装：
-1. 解压下载的 side-door-${info.version}.zip 文件
-2. 打开 Chrome，访问 chrome://extensions/
-3. 开启右上角的"开发者模式"
-4. 点击"加载已解压的扩展程序"
-5. 选择解压后的文件夹
-
-安装完成后刷新此页面即可使用完整功能！`);
-              }, 800);
-            }
             return;
           }
         }
         
-        // 如果服务器没有扩展包，显示手动安装指南
-        alert(`⚠️ 扩展安装包暂不可用
-
-请联系管理员获取安装包，或按以下步骤手动构建：
-
-1. 克隆项目: git clone <repo-url>
-2. 安装依赖: npm install
-3. 构建并打包: npm run build:pack
-4. 打开 Chrome，访问 chrome://extensions/
-5. 开启"开发者模式"
-6. 点击"加载已解压的扩展程序"
-7. 选择 .output/chrome-mv3 文件夹`);
+        // 如果没有可用的 ZIP 包
+        downloadStatus.innerHTML = `⚠️ 扩展安装包暂不可用<br><br>请联系管理员获取安装包，或手动构建：<br><code>npm run build:pack</code>`;
+        downloadStatus.classList.add('show');
         
       } catch (error) {
-        console.error('检查扩展信息失败:', error);
-        alert(`⚠️ 无法连接到服务器
-
-请确保 web 服务正在运行：
-npm run serve
-
-或手动构建安装包：
-npm run build:pack`);
+        console.error('下载扩展失败:', error);
+        downloadStatus.innerHTML = `❌ 下载失败<br><br>请确保 web 服务正在运行，或稍后重试。`;
+        downloadStatus.classList.add('show');
       } finally {
-        // 恢复按钮状态
-        installBtn.innerHTML = originalText;
-        installBtn.disabled = false;
+        // 恢复按钮（如果不是成功状态）
+        if (!downloadStatus.classList.contains('success')) {
+          downloadBtn.innerHTML = originalText;
+          downloadBtn.disabled = false;
+        }
       }
     };
     
@@ -1064,6 +1368,46 @@ npm run build:pack`);
     // 初始加载
     initSearch();
     loadArticles();
+    
+    // 检测扩展是否已安装
+    function checkExtensionInstalled() {
+      // 方法1: 检查扩展注入的全局变量或 DOM 元素
+      if (window.__SIDEDOOR_EXTENSION_INSTALLED__ || document.getElementById('sidedoor-extension-marker')) {
+        hideInstallButton();
+        return;
+      }
+      
+      // 方法2: 尝试与扩展通信
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        // 尝试发送消息给扩展（需要知道扩展 ID）
+        // 这种方法需要扩展配置 externally_connectable
+      }
+      
+      // 方法3: 监听扩展可能发送的消息
+      window.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'SIDEDOOR_EXTENSION_READY') {
+          hideInstallButton();
+        }
+      });
+      
+      // 方法4: 检查扩展特定的 API 是否存在
+      setTimeout(() => {
+        // 给扩展一点时间注入内容
+        if (window.__SIDEDOOR_EXTENSION_INSTALLED__ || document.getElementById('sidedoor-extension-marker')) {
+          hideInstallButton();
+        }
+      }, 1000);
+    }
+    
+    function hideInstallButton() {
+      const installBtn = document.querySelector('.install-btn');
+      if (installBtn) {
+        installBtn.style.display = 'none';
+      }
+    }
+    
+    // 页面加载后检测扩展
+    checkExtensionInstalled();
   </script>
 </body>
 </html>

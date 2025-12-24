@@ -165,7 +165,61 @@ const server = createServer(async (req, res) => {
   
   console.log(`[${new Date().toISOString()}] ${req.method} ${pathname}`);
   
-  // 1. 检查路由映射
+  // 1. API 路由优先处理
+  if (pathname === '/api/extension-info') {
+    const crxFile = getLatestCrxFile();
+    const zipFile = getLatestZipFile();
+    
+    // 读取版本信息 - 优先从构建产物读取，否则从 package.json 读取
+    let version = 'unknown';
+    const manifestPath = join(__dirname, '.output/chrome-mv3/manifest.json');
+    const packagePath = join(__dirname, 'package.json');
+    
+    if (existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+        version = manifest.version;
+      } catch (e) {
+        console.error('读取 manifest.json 失败:', e);
+      }
+    }
+    
+    // 如果没有构建产物，从 package.json 读取版本
+    if (version === 'unknown' && existsSync(packagePath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(packagePath, 'utf-8'));
+        version = pkg.version;
+      } catch (e) {
+        console.error('读取 package.json 失败:', e);
+      }
+    }
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      version,
+      crxAvailable: !!crxFile,
+      zipAvailable: !!zipFile,
+      crxUrl: crxFile ? '/download/extension.crx' : null,
+      zipUrl: zipFile ? '/download/extension.zip' : null,
+      buildRequired: !zipFile && !crxFile,
+      buildCommand: 'npm run build:pack',
+    }));
+    return;
+  }
+  
+  // 2. 健康检查
+  if (pathname === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      service: 'sidedoor-web',
+      timestamp: new Date().toISOString(),
+      routes: Object.keys(ROUTES),
+    }));
+    return;
+  }
+  
+  // 3. 检查路由映射
   if (ROUTES[pathname]) {
     const filePath = join(__dirname, ROUTES[pathname]);
     if (await sendFile(res, filePath)) return;
@@ -256,44 +310,6 @@ const server = createServer(async (req, res) => {
       }));
       return;
     }
-  }
-  
-  // 12. 获取扩展信息 API
-  if (pathname === '/api/extension-info') {
-    const crxFile = getLatestCrxFile();
-    const zipFile = getLatestZipFile();
-    
-    // 读取版本信息
-    let version = 'unknown';
-    const manifestPath = join(__dirname, '.output/chrome-mv3/manifest.json');
-    if (existsSync(manifestPath)) {
-      try {
-        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
-        version = manifest.version;
-      } catch (e) {}
-    }
-    
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      version,
-      crxAvailable: !!crxFile,
-      zipAvailable: !!zipFile,
-      crxUrl: crxFile ? '/download/extension.crx' : null,
-      zipUrl: zipFile ? '/download/extension.zip' : null,
-    }));
-    return;
-  }
-  
-  // 13. 健康检查
-  if (pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      service: 'sidedoor-web',
-      timestamp: new Date().toISOString(),
-      routes: Object.keys(ROUTES),
-    }));
-    return;
   }
   
   // 404

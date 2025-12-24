@@ -30,6 +30,15 @@
         </button>
         <div v-if="searching" class="search-spinner"></div>
       </div>
+      <button class="refresh-btn" @click="refreshArticles" :disabled="loading || searching" title="刷新列表">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          :class="{ 'spinning': loading || searching }">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+      </button>
     </div>
 
     <!-- Content -->
@@ -243,6 +252,13 @@ function onSearchInput() {
 function clearSearch() {
   searchKeyword.value = '';
   searchSubject.next('');
+}
+
+// 刷新文章列表
+async function refreshArticles() {
+  searchKeyword.value = '';
+  currentPage.value = 1;
+  await loadArticles();
 }
 
 // 搜索文章
@@ -529,12 +545,15 @@ onUnmounted(() => {
 
 /* Search Box */
 .search-box {
+  display: flex;
+  gap: 10px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--border-color);
   background: var(--background-color);
 }
 
 .search-input-wrapper {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -594,6 +613,36 @@ onUnmounted(() => {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
+}
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--background-color);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  border-color: var(--primary-color, #007bff);
+  color: var(--primary-color, #007bff);
+  background: var(--hover-bg-color);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.refresh-btn svg.spinning {
+  animation: spin 1s linear infinite;
 }
 
 .read-later-content {
