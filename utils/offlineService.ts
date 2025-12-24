@@ -1,10 +1,12 @@
 /**
- * 离线服务 - 处理离线优先的数据加载策略
+ * 离线服务 - 处理离线优先的数据加载策略 (增强版)
+ * 集成 Workbox Service Worker 和 IndexedDB
  */
 
 import { indexedDB } from './indexedDB';
 import type { Article } from './indexedDB';
 import type { PaginatedArticles } from '../types/article';
+import { offlineResourceManager } from './offlineResourceManager';
 
 export interface NetworkStatus {
   online: boolean;
@@ -20,21 +22,43 @@ class OfflineService {
   };
 
   private checkInterval: number | null = null;
+  private listeners: Set<(status: NetworkStatus) => void> = new Set();
 
   constructor() {
     // 监听在线/离线状态
     window.addEventListener('online', () => {
       this.networkStatus.online = true;
       this.checkSupabaseAvailability();
+      this.notifyListeners();
+      
+      // 在线时尝试处理离线操作队列
+      this.processOfflineQueue();
     });
 
     window.addEventListener('offline', () => {
       this.networkStatus.online = false;
       this.networkStatus.supabaseAvailable = false;
+      this.notifyListeners();
     });
 
     // 定期检查 Supabase 可用性
     this.startPeriodicCheck();
+  }
+
+  /**
+   * 添加网络状态监听器
+   */
+  addNetworkStatusListener(listener: (status: NetworkStatus) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /**
+   * 通知所有监听器
+   */
+  private notifyListeners(): void {
+    const status = this.getNetworkStatus();
+    this.listeners.forEach((listener) => listener(status));
   }
 
   /**
@@ -63,8 +87,15 @@ class OfflineService {
    * 检查 Supabase 可用性
    */
   async checkSupabaseAvailability(): Promise<boolean> {
+    // 离线时直接返回不可用，避免发送网络请求
     if (!this.networkStatus.online) {
+      const wasAvailable = this.networkStatus.supabaseAvailable;
       this.networkStatus.supabaseAvailable = false;
+      this.networkStatus.lastCheck = Date.now();
+      
+      if (wasAvailable !== false) {
+        this.notifyListeners();
+      }
       return false;
     }
 
@@ -72,23 +103,37 @@ class OfflineService {
       // 简单的健康检查 - 尝试导入 supabase 并测试连接
       const { supabase } = await import('../utils/supabase');
       
+      // 使用 AbortController 设置超时
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       // 尝试执行一个简单的查询
       const { error } = await supabase
         .from('articles')
         .select('id', { count: 'exact', head: true })
-        .limit(1);
+        .limit(1)
+        .abortSignal(controller.signal);
 
+      clearTimeout(timeoutId);
+
+      const wasAvailable = this.networkStatus.supabaseAvailable;
       this.networkStatus.supabaseAvailable = !error;
       this.networkStatus.lastCheck = Date.now();
       
       if (error) {
-        console.warn('Supabase 不可用:', error.message);
+        console.warn('[OfflineService] Supabase 不可用:', error.message);
+      }
+
+      // 如果状态变化，通知监听器
+      if (wasAvailable !== this.networkStatus.supabaseAvailable) {
+        this.notifyListeners();
       }
 
       return this.networkStatus.supabaseAvailable;
     } catch (error) {
-      console.error('检查 Supabase 可用性失败:', error);
+      console.warn('[OfflineService] 检查 Supabase 可用性失败:', (error as Error).message);
       this.networkStatus.supabaseAvailable = false;
+      this.networkStatus.lastCheck = Date.now();
       return false;
     }
   }
@@ -219,7 +264,6 @@ class OfflineService {
     }
 
     // 3. 检查缓存的文章是否包含完整 content 字段
-    // 注意：html_file_url 和 pdf_file_url 只是链接，不算完整内容
     const hasContent = cached && cached.content && cached.content.length > 0;
     
     // 4. 在线时，如果有完整缓存，优先返回缓存，然后后台更新
@@ -231,8 +275,7 @@ class OfflineService {
       return cached;
     }
 
-    // 5. 如果缓存不完整（只有列表数据，没有 content），从网络获取完整数据
-    // 6. 没有缓存或缓存不完整时，从网络获取
+    // 5. 如果缓存不完整，从网络获取完整数据
     return await this.fetchAndCacheArticle(id);
   }
 
@@ -289,11 +332,60 @@ class OfflineService {
   }
 
   /**
+   * 下载文章供离线阅读（包括图片等资源）
+   */
+  async downloadForOffline(article: Article, options?: {
+    includeImages?: boolean;
+    includeFiles?: boolean;
+  }): Promise<boolean> {
+    return await offlineResourceManager.downloadArticleForOffline(article, options);
+  }
+
+  /**
+   * 批量下载文章供离线阅读
+   */
+  async batchDownloadForOffline(articles: Article[], options?: {
+    includeImages?: boolean;
+    includeFiles?: boolean;
+    onProgress?: (current: number, total: number) => void;
+  }): Promise<{ success: number; failed: number }> {
+    return await offlineResourceManager.downloadArticlesForOffline(articles, {
+      ...options,
+      onProgress: options?.onProgress 
+        ? (progress) => options.onProgress!(progress.current, progress.total)
+        : undefined,
+    });
+  }
+
+  /**
+   * 检查文章是否可离线访问
+   */
+  async isAvailableOffline(articleId: string): Promise<boolean> {
+    return await offlineResourceManager.isArticleAvailableOffline(articleId);
+  }
+
+  /**
    * 清理旧缓存
    */
   async cleanOldCache(maxAge = 7 * 24 * 60 * 60 * 1000): Promise<void> {
-    // 7 天
     await indexedDB.cleanExpiredCache();
+    await offlineResourceManager.cleanOldData(Math.floor(maxAge / (24 * 60 * 60 * 1000)));
+  }
+
+  /**
+   * 处理离线操作队列
+   */
+  async processOfflineQueue(): Promise<void> {
+    if (this.shouldUseOfflineData()) return;
+    
+    try {
+      const result = await offlineResourceManager.processOfflineQueue();
+      if (result.processed > 0) {
+        console.log(`[OfflineService] 处理了 ${result.processed} 个离线操作`);
+      }
+    } catch (error) {
+      console.error('[OfflineService] 处理离线队列失败:', error);
+    }
   }
 
   /**
@@ -301,13 +393,113 @@ class OfflineService {
    */
   async getOfflineStats() {
     const stats = await indexedDB.getStats();
+    const resourceStats = await offlineResourceManager.getStats();
     const networkStatus = this.getNetworkStatus();
 
     return {
       ...stats,
+      resourceStats,
       networkStatus,
       isOffline: this.shouldUseOfflineData(),
     };
+  }
+
+  /**
+   * 获取翻译（优先使用缓存）
+   */
+  async getTranslation(
+    sourceText: string,
+    sourceLang: string,
+    targetLang: string,
+    translateFn?: () => Promise<string>
+  ): Promise<string | null> {
+    // 1. 检查缓存
+    const cached = await offlineResourceManager.getCachedTranslation(
+      sourceText,
+      sourceLang,
+      targetLang
+    );
+    
+    if (cached) {
+      return cached.translatedText;
+    }
+
+    // 2. 如果离线且没有缓存，返回 null
+    if (this.shouldUseOfflineData()) {
+      return null;
+    }
+
+    // 3. 在线时，调用翻译函数并缓存
+    if (translateFn) {
+      try {
+        const translatedText = await translateFn();
+        await offlineResourceManager.cacheTranslation({
+          sourceText,
+          translatedText,
+          sourceLang,
+          targetLang,
+        });
+        return translatedText;
+      } catch (error) {
+        console.error('[OfflineService] 翻译失败:', error);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 获取 AI 总结（优先使用缓存）
+   */
+  async getSummary(
+    sourceText: string,
+    model?: string,
+    summarizeFn?: () => Promise<string>
+  ): Promise<string | null> {
+    // 1. 检查缓存
+    const cached = await offlineResourceManager.getCachedSummary(sourceText, model);
+    
+    if (cached) {
+      return cached.summary;
+    }
+
+    // 2. 如果离线且没有缓存，返回 null
+    if (this.shouldUseOfflineData()) {
+      return null;
+    }
+
+    // 3. 在线时，调用总结函数并缓存
+    if (summarizeFn) {
+      try {
+        const summary = await summarizeFn();
+        await offlineResourceManager.cacheSummary({
+          sourceText,
+          summary,
+          model,
+        });
+        return summary;
+      } catch (error) {
+        console.error('[OfflineService] 总结失败:', error);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 获取图片（优先使用缓存）
+   */
+  async getImage(url: string): Promise<string | null> {
+    return await offlineResourceManager.getImage(url);
+  }
+
+  /**
+   * 获取文件（优先使用缓存）
+   */
+  async getFile(url: string): Promise<string | null> {
+    return await offlineResourceManager.getFile(url);
   }
 }
 

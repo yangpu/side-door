@@ -662,14 +662,48 @@ export class ReadLaterService {
   }
 
   /**
-   * 获取稍后阅读列表(分页) - 不包含完整内容
+   * 获取稍后阅读列表(分页) - 支持离线缓存
    */
   static async getArticles(params: PaginationParams): Promise<PaginatedArticles> {
     const { page = 1, pageSize = 10 } = params;
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
+    const cacheKey = `articles_list_${page}_${pageSize}`;
 
     try {
+      // 1. 如果离线，直接使用缓存
+      if (!navigator.onLine) {
+        console.log('[ReadLaterService] 离线模式，使用缓存列表');
+        try {
+          const { indexedDB } = await import('../utils/indexedDB');
+          const cached = await indexedDB.getArticlesList(cacheKey);
+          if (cached) {
+            return {
+              articles: cached.articles || [],
+              total: cached.total || 0,
+              page,
+              pageSize,
+              totalPages: Math.ceil((cached.total || 0) / pageSize),
+            };
+          }
+          
+          // 没有缓存列表，尝试从所有本地文章中分页
+          const allArticles = await indexedDB.getAllArticles();
+          const start = (page - 1) * pageSize;
+          const articles = allArticles.slice(start, start + pageSize);
+          return {
+            articles,
+            total: allArticles.length,
+            page,
+            pageSize,
+            totalPages: Math.ceil(allArticles.length / pageSize),
+          };
+        } catch (e) {
+          console.warn('[ReadLaterService] 离线缓存获取失败:', e);
+        }
+      }
+
+      // 2. 在线时，尝试从网络获取
       // 获取总数
       const { count } = await supabase
         .from('articles')
@@ -702,15 +736,60 @@ export class ReadLaterService {
         throw error;
       }
 
-      return {
+      const result = {
         articles: articles || [],
         total: count || 0,
         page,
         pageSize,
         totalPages: Math.ceil((count || 0) / pageSize),
       };
+
+      // 3. 网络获取成功，更新缓存
+      try {
+        const { indexedDB } = await import('../utils/indexedDB');
+        await indexedDB.saveArticlesList(cacheKey, result.articles, result.total, 5 * 60 * 1000);
+        // 同时缓存每篇文章
+        await Promise.all(result.articles.map((article: Article) => indexedDB.saveArticle(article)));
+      } catch (e) {
+        // 缓存保存失败不影响返回
+      }
+
+      return result;
     } catch (error) {
-      console.error('获取文章列表失败:', error);
+      console.error('[ReadLaterService] 获取文章列表失败:', error);
+      
+      // 网络失败，尝试使用缓存
+      try {
+        const { indexedDB } = await import('../utils/indexedDB');
+        const cached = await indexedDB.getArticlesList(cacheKey);
+        if (cached) {
+          console.log('[ReadLaterService] 网络失败，使用离线缓存');
+          return {
+            articles: cached.articles || [],
+            total: cached.total || 0,
+            page,
+            pageSize,
+            totalPages: Math.ceil((cached.total || 0) / pageSize),
+          };
+        }
+        
+        // 尝试从所有本地文章中分页
+        const allArticles = await indexedDB.getAllArticles();
+        if (allArticles.length > 0) {
+          const start = (page - 1) * pageSize;
+          const articles = allArticles.slice(start, start + pageSize);
+          return {
+            articles,
+            total: allArticles.length,
+            page,
+            pageSize,
+            totalPages: Math.ceil(allArticles.length / pageSize),
+          };
+        }
+      } catch (e) {
+        // 忽略
+      }
+
       return {
         articles: [],
         total: 0,
@@ -722,11 +801,26 @@ export class ReadLaterService {
   }
 
   /**
-   * 获取单篇文章详情
+   * 获取单篇文章详情（支持离线缓存）
    */
   static async getArticleById(id: string): Promise<Article | null> {
+    const { indexedDB } = await import('../utils/indexedDB');
+    
     try {
-      // 获取文章基本信息（图片URL已经在content中）
+      // 1. 先尝试从离线缓存获取
+      const cachedArticle = await indexedDB.getArticle(id);
+      
+      // 如果离线，直接返回缓存（无论有没有）
+      if (!navigator.onLine) {
+        if (cachedArticle) {
+          console.log('[ReadLaterService] 离线模式，使用缓存文章');
+        } else {
+          console.log('[ReadLaterService] 离线模式，无缓存数据');
+        }
+        return cachedArticle;
+      }
+
+      // 2. 在线时尝试从网络获取
       const { data: article, error: articleError } = await supabase
         .from('articles')
         .select('*')
@@ -734,23 +828,58 @@ export class ReadLaterService {
         .single();
 
       if (articleError || !article) {
-        console.error('获取文章失败:', articleError);
-        return null;
+        // 网络请求失败，返回缓存
+        console.warn('[ReadLaterService] 网络请求失败，使用缓存:', articleError?.message);
+        return cachedArticle;
+      }
+
+      // 3. 网络获取成功，更新缓存
+      try {
+        await indexedDB.saveArticle(article);
+      } catch (e) {
+        // 缓存保存失败不影响返回
       }
 
       return article;
     } catch (error) {
-      console.error('获取文章详情时发生错误:', error);
+      console.error('[ReadLaterService] 获取文章时发生错误:', error);
+      
+      // 最后尝试从缓存获取
+      try {
+        const cachedArticle = await indexedDB.getArticle(id);
+        if (cachedArticle) {
+          console.log('[ReadLaterService] 异常情况下使用离线缓存');
+          return cachedArticle;
+        }
+      } catch (e) {
+        // 忽略
+      }
+      
       return null;
     }
   }
 
   /**
-   * 通过 URL 获取文章详情
+   * 通过 URL 获取文章详情（支持离线缓存）
    */
   static async getArticleByUrl(url: string): Promise<Article | null> {
+    const { indexedDB } = await import('../utils/indexedDB');
+    
     try {
-      // 使用 maybeSingle() 代替 single()，这样在没有找到记录时不会报错
+      // 1. 先尝试从离线缓存获取
+      const cachedArticle = await indexedDB.getArticleByUrl(url);
+      
+      // 如果离线，直接返回缓存（无论有没有）
+      if (!navigator.onLine) {
+        if (cachedArticle) {
+          console.log('[ReadLaterService] 离线模式，使用缓存文章');
+        } else {
+          console.log('[ReadLaterService] 离线模式，无缓存数据');
+        }
+        return cachedArticle;
+      }
+
+      // 2. 在线时尝试从网络获取
       const { data: article, error: articleError } = await supabase
         .from('articles')
         .select('*')
@@ -758,14 +887,35 @@ export class ReadLaterService {
         .maybeSingle();
 
       if (articleError) {
-        // 只在真正的错误时打印
-        console.error('通过URL获取文章失败:', articleError);
-        return null;
+        // 网络请求失败，返回缓存
+        console.warn('[ReadLaterService] 网络请求失败，使用缓存:', articleError.message);
+        return cachedArticle;
+      }
+
+      // 3. 网络获取成功，更新缓存
+      if (article) {
+        try {
+          await indexedDB.saveArticle(article);
+        } catch (e) {
+          // 缓存保存失败不影响返回
+        }
       }
 
       return article;
     } catch (error) {
-      console.error('通过URL获取文章详情时发生错误:', error);
+      console.error('[ReadLaterService] 获取文章时发生错误:', error);
+      
+      // 最后尝试从缓存获取
+      try {
+        const cachedArticle = await indexedDB.getArticleByUrl(url);
+        if (cachedArticle) {
+          console.log('[ReadLaterService] 异常情况下使用离线缓存');
+          return cachedArticle;
+        }
+      } catch (e) {
+        // 忽略
+      }
+      
       return null;
     }
   }

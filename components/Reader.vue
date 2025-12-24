@@ -1919,7 +1919,8 @@ async function processImage(src: string, img: HTMLImageElement): Promise<string 
     const filteredDomains = JSON.parse(
       localStorage.getItem('filteredDomains') || '[]'
     ) as string[];
-    const useProxy = filteredDomains.includes(currentDomain);
+    // 离线时不使用代理
+    const useProxy = navigator.onLine && filteredDomains.includes(currentDomain);
 
     // 如果图片已完全加载，直接尝试转换
     if (img.complete && img.naturalWidth > 0) {
@@ -1997,12 +1998,14 @@ async function processImage(src: string, img: HTMLImageElement): Promise<string 
             resolve(null);
           }
         } else {
-          // 如果不是使用代理服务，则将当前域名添加到过滤列表
-          filteredDomains.push(currentDomain);
-          localStorage.setItem(
-            'filteredDomains',
-            JSON.stringify(filteredDomains)
-          );
+          // 如果不是使用代理服务且在线，则将当前域名添加到过滤列表
+          if (navigator.onLine) {
+            filteredDomains.push(currentDomain);
+            localStorage.setItem(
+              'filteredDomains',
+              JSON.stringify(filteredDomains)
+            );
+          }
           resolve(null);
         }
       }
@@ -5019,7 +5022,7 @@ watch(currentTheme, (newTheme) => {
             </span>
           </span>
         </p>
-        <div class="summary">
+        <div class="summary" v-if="enableSummary || summary">
           <h2 class="summary-title" title="重新生成文章摘要" @click="generateSummary()">文章摘要</h2>
           <div class="summary-content" v-html="summary"></div>
         </div>
